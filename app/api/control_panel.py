@@ -28,7 +28,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 logger = get_logger(__name__)
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse, response_model=None)
 def root(request: Request) -> RedirectResponse:
     if not _is_authenticated(request):
         return _redirect_to_login(request, "/console")
@@ -36,7 +36,7 @@ def root(request: Request) -> RedirectResponse:
     return RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/login", response_class=HTMLResponse)
+@router.get("/login", response_class=HTMLResponse, response_model=None)
 def login_page(request: Request, error: str | None = None) -> HTMLResponse:
     settings = get_settings()
     return templates.TemplateResponse(
@@ -50,7 +50,7 @@ def login_page(request: Request, error: str | None = None) -> HTMLResponse:
     )
 
 
-@router.post("/login", response_class=HTMLResponse)
+@router.post("/login", response_class=HTMLResponse, response_model=None)
 def login_submit(
     request: Request,
     username: str = Form(""),
@@ -88,13 +88,13 @@ def login_submit(
     return RedirectResponse(url=_sanitize_next_url(next_url), status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/logout")
+@router.get("/logout", response_model=None)
 def logout(request: Request) -> RedirectResponse:
     request.session.clear()
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/setup", response_class=HTMLResponse)
+@router.get("/setup", response_class=HTMLResponse, response_model=None)
 def setup_page(request: Request, notice: str | None = None, db_message: str | None = None) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/setup")
     if access_redirect is not None:
@@ -113,7 +113,7 @@ def setup_page(request: Request, notice: str | None = None, db_message: str | No
     )
 
 
-@router.post("/setup", response_class=HTMLResponse)
+@router.post("/setup", response_class=HTMLResponse, response_model=None)
 async def save_setup_page(
     request: Request,
     app_name: str = Form("ProjectAssistant"),
@@ -205,7 +205,7 @@ async def save_setup_page(
     )
 
 
-@router.get("/console", response_class=HTMLResponse)
+@router.get("/console", response_class=HTMLResponse, response_model=None)
 def console_page(request: Request) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
@@ -215,7 +215,7 @@ def console_page(request: Request) -> HTMLResponse | RedirectResponse:
     return _render_console(request=request)
 
 
-@router.post("/console/question", response_class=HTMLResponse)
+@router.post("/console/question", response_class=HTMLResponse, response_model=None)
 def ask_question(request: Request, question: str = Form("")) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
@@ -235,7 +235,7 @@ def ask_question(request: Request, question: str = Form("")) -> HTMLResponse | R
     return _render_console(request=request, question=question, answer=answer)
 
 
-@router.post("/console/test-teams", response_class=HTMLResponse)
+@router.post("/console/test-teams", response_class=HTMLResponse, response_model=None)
 def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
@@ -282,7 +282,7 @@ def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLRe
     return _render_console(request=request, payload_json=payload_json, test_result=test_result)
 
 
-@router.post("/console/graph/subscribe", response_class=HTMLResponse)
+@router.post("/console/graph/subscribe", response_class=HTMLResponse, response_model=None)
 def subscribe_graph_targets(
     request: Request,
     target_values: list[str] = Form([]),
@@ -396,4 +396,5 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
 
