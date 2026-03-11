@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -138,7 +138,7 @@ class GraphClient:
     def list_user_chats(self, *, user_id: str) -> list[dict[str, Any]] | None:
         payload = self._get_graph_json(
             f"users/{user_id}/chats",
-            params={"$select": "id,topic,chatType,webUrl", "$top": "200"},
+            params={"$select": "id,topic,chatType", "$top": "200"},
         )
         if payload is None:
             return None
@@ -298,3 +298,4 @@ class GraphClient:
                 "content": f"<div>{escaped}</div>",
             }
         }
+

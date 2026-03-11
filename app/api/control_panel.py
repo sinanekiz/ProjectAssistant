@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from json import JSONDecodeError, loads
 from pathlib import Path
@@ -145,6 +145,9 @@ async def save_setup_page(
     telegram_poll_interval_seconds: str = Form("5"),
     public_webhook_base_url: str = Form(""),
     openai_api_key: str = Form(""),
+    panel_login_username: str = Form("sinan"),
+    panel_login_password: str = Form(""),
+    panel_session_secret: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/setup")
     if access_redirect is not None:
@@ -180,6 +183,9 @@ async def save_setup_page(
         "TELEGRAM_POLL_INTERVAL_SECONDS": telegram_poll_interval_seconds,
         "PUBLIC_WEBHOOK_BASE_URL": public_webhook_base_url,
         "OPENAI_API_KEY": openai_api_key,
+        "PANEL_LOGIN_USERNAME": panel_login_username,
+        "PANEL_LOGIN_PASSWORD": panel_login_password,
+        "PANEL_SESSION_SECRET": panel_session_secret,
     }
     save_setup(values)
 
@@ -398,6 +404,9 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
+
+
 
 
 

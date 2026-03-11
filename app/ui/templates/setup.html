@@ -78,6 +78,9 @@
         <label>Telegram Poll Interval Seconds<input name="telegram_poll_interval_seconds" value="{{ values.TELEGRAM_POLL_INTERVAL_SECONDS }}"></label>
         <label>Public Webhook Base URL<input name="public_webhook_base_url" value="{{ values.PUBLIC_WEBHOOK_BASE_URL }}"></label>
         <label>OpenAI API Key<input name="openai_api_key" value="{{ values.OPENAI_API_KEY }}"></label>
+        <label>Panel Login Username<input name="panel_login_username" value="{{ values.PANEL_LOGIN_USERNAME }}"></label>
+        <label>Panel Login Password<input type="password" name="panel_login_password" value="{{ values.PANEL_LOGIN_PASSWORD }}"></label>
+        <label>Panel Session Secret<input type="password" name="panel_session_secret" value="{{ values.PANEL_SESSION_SECRET }}"></label>
     </section>
 
     <section class="panel-card actions-card">
@@ -90,4 +93,5 @@
     </section>
 </form>
 {% endblock %}
+
 

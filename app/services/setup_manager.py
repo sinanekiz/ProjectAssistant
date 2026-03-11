@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -40,6 +40,9 @@ SETUP_KEYS = [
     "TELEGRAM_POLL_INTERVAL_SECONDS",
     "PUBLIC_WEBHOOK_BASE_URL",
     "OPENAI_API_KEY",
+    "PANEL_LOGIN_USERNAME",
+    "PANEL_LOGIN_PASSWORD",
+    "PANEL_SESSION_SECRET",
 ]
 SECRET_KEYS = {
     "POSTGRES_PASSWORD",
@@ -48,6 +51,8 @@ SECRET_KEYS = {
     "TEAMS_BOT_TOKEN",
     "TELEGRAM_BOT_TOKEN",
     "OPENAI_API_KEY",
+    "PANEL_LOGIN_PASSWORD",
+    "PANEL_SESSION_SECRET",
 }
 
 
@@ -103,6 +108,9 @@ def get_form_defaults() -> dict[str, str]:
         "TELEGRAM_POLL_INTERVAL_SECONDS": str(settings.telegram_poll_interval_seconds),
         "PUBLIC_WEBHOOK_BASE_URL": settings.public_webhook_base_url or "",
         "OPENAI_API_KEY": settings.openai_api_key or "",
+        "PANEL_LOGIN_USERNAME": settings.panel_login_username,
+        "PANEL_LOGIN_PASSWORD": settings.panel_login_password or "",
+        "PANEL_SESSION_SECRET": settings.panel_session_secret or "",
     }
     defaults.update(file_values)
     return defaults
