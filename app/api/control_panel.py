@@ -22,9 +22,11 @@ from app.services.graph_subscriptions import build_manual_chat_target, load_team
 from app.services.setup_manager import (
     get_general_config_summary,
     get_general_form_defaults,
+    get_telegram_form_defaults,
     get_teams_form_defaults,
     is_setup_complete,
     save_general_settings,
+    save_telegram_settings,
     save_teams_settings,
     test_database_connection,
 )
@@ -124,10 +126,6 @@ async def save_general_settings_page(
     app_env: str = Form("local"),
     log_level: str = Form("INFO"),
     preferred_language: str = Form("tr"),
-    telegram_bot_token: str = Form(""),
-    telegram_chat_id: str = Form(""),
-    telegram_approval_mode: str = Form("polling"),
-    telegram_poll_interval_seconds: str = Form("5"),
     public_webhook_base_url: str = Form(""),
     openai_api_key: str = Form(""),
     panel_login_username: str = Form("sinan"),
@@ -144,10 +142,6 @@ async def save_general_settings_page(
         "APP_ENV": app_env,
         "LOG_LEVEL": log_level,
         "PREFERRED_LANGUAGE": preferred_language,
-        "TELEGRAM_BOT_TOKEN": telegram_bot_token,
-        "TELEGRAM_CHAT_ID": telegram_chat_id,
-        "TELEGRAM_APPROVAL_MODE": telegram_approval_mode,
-        "TELEGRAM_POLL_INTERVAL_SECONDS": telegram_poll_interval_seconds,
         "PUBLIC_WEBHOOK_BASE_URL": public_webhook_base_url,
         "OPENAI_API_KEY": openai_api_key,
         "PANEL_LOGIN_USERNAME": panel_login_username,
@@ -170,9 +164,47 @@ async def save_general_settings_page(
     return _render_general_settings(request=request, notice="", db_message=db_message, errors=["Veritabani baglantisi kurulamadigi icin ayarlar kaydedilmedi."])
 
 
-@router.post("/settings/general/telegram-webhook/activate", response_class=HTMLResponse, response_model=None)
+@router.get("/settings/telegram", response_class=HTMLResponse, response_model=None)
+def telegram_settings_page(request: Request, notice: str | None = None, errors: list[str] | None = None) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/telegram")
+    if access_redirect is not None:
+        return access_redirect
+    return _render_telegram_settings(request=request, notice=notice or "", errors=errors or [])
+
+
+@router.post("/settings/telegram", response_class=HTMLResponse, response_model=None)
+async def save_telegram_settings_page(
+    request: Request,
+    telegram_bot_token: str = Form(""),
+    telegram_chat_id: str = Form(""),
+    telegram_approval_mode: str = Form("polling"),
+    telegram_poll_interval_seconds: str = Form("5"),
+) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/telegram")
+    if access_redirect is not None:
+        return access_redirect
+
+    values = {
+        "TELEGRAM_BOT_TOKEN": telegram_bot_token,
+        "TELEGRAM_CHAT_ID": telegram_chat_id,
+        "TELEGRAM_APPROVAL_MODE": telegram_approval_mode,
+        "TELEGRAM_POLL_INTERVAL_SECONDS": telegram_poll_interval_seconds,
+    }
+    save_telegram_settings(values)
+
+    from app.config import get_settings as get_cached_settings
+
+    get_cached_settings.cache_clear()
+    reset_db_state()
+    configure_logging()
+    await refresh_telegram_polling_state()
+    append_activity("telegram_settings_saved", "Telegram settings saved", {})
+    return _render_telegram_settings(request=request, notice="Telegram ayarlari kaydedildi.", errors=[])
+
+
+@router.post("/settings/telegram/webhook/activate", response_class=HTMLResponse, response_model=None)
 async def activate_telegram_webhook(request: Request) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_settings_access(request, "/settings/general")
+    access_redirect = _guard_settings_access(request, "/settings/telegram")
     if access_redirect is not None:
         return access_redirect
 
@@ -192,12 +224,12 @@ async def activate_telegram_webhook(request: Request) -> HTMLResponse | Redirect
             errors.append("Telegram webhook aktif edilemedi.")
 
     await refresh_telegram_polling_state()
-    return _render_general_settings(request=request, notice=notice, db_message=None, errors=errors)
+    return _render_telegram_settings(request=request, notice=notice, errors=errors)
 
 
-@router.post("/settings/general/telegram-webhook/deactivate", response_class=HTMLResponse, response_model=None)
+@router.post("/settings/telegram/webhook/deactivate", response_class=HTMLResponse, response_model=None)
 async def deactivate_telegram_webhook(request: Request) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_settings_access(request, "/settings/general")
+    access_redirect = _guard_settings_access(request, "/settings/telegram")
     if access_redirect is not None:
         return access_redirect
 
@@ -214,7 +246,7 @@ async def deactivate_telegram_webhook(request: Request) -> HTMLResponse | Redire
             errors.append("Telegram webhook kapatilamadi.")
 
     await refresh_telegram_polling_state()
-    return _render_general_settings(request=request, notice=notice, db_message=None, errors=errors)
+    return _render_telegram_settings(request=request, notice=notice, errors=errors)
 
 
 @router.get("/settings/teams", response_class=HTMLResponse, response_model=None)
@@ -466,6 +498,24 @@ def _render_general_settings(
             "db_message": db_message,
             "errors": errors,
             "setup_complete": is_setup_complete(),
+            "is_authenticated": _is_authenticated(request),
+        },
+    )
+
+
+def _render_telegram_settings(
+    *,
+    request: Request,
+    notice: str,
+    errors: list[str],
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="settings_telegram.html",
+        context={
+            "values": get_telegram_form_defaults(),
+            "notice": notice,
+            "errors": errors,
             "is_authenticated": _is_authenticated(request),
         },
     )

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram Ayarlari | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Telegram Ayarlari</p>
+        <h2>Approval akisi, bot bilgileri ve webhook kontrolu</h2>
+        <p class="hero-copy">
+            Telegram approval akisini bu ekrandan yonetebilirsin. Bot token, chat id ve approval modu burada saklanir.
+        </p>
+    </div>
+    <div class="status-stack">
+        {% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+        {% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+    </div>
+</section>
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Telegram Form</h3>
+        <form method="post" action="/settings/telegram" class="grid-layout">
+            <label>Telegram Bot Token<input name="telegram_bot_token" value="{{ values.TELEGRAM_BOT_TOKEN }}"></label>
+            <label>Telegram Chat ID<input name="telegram_chat_id" value="{{ values.TELEGRAM_CHAT_ID }}"></label>
+            <label>Telegram Approval Mode
+                <select name="telegram_approval_mode">
+                    <option value="polling" {% if values.TELEGRAM_APPROVAL_MODE == 'polling' %}selected{% endif %}>Polling</option>
+                    <option value="webhook" {% if values.TELEGRAM_APPROVAL_MODE == 'webhook' %}selected{% endif %}>Webhook</option>
+                </select>
+            </label>
+            <label>Telegram Poll Interval Seconds<input name="telegram_poll_interval_seconds" value="{{ values.TELEGRAM_POLL_INTERVAL_SECONDS }}"></label>
+            <div class="button-row">
+                <button type="submit" class="primary-btn">Telegram Ayarlarini Kaydet</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel-card">
+        <h3>Telegram Webhook</h3>
+        <p class="muted">Webhook moduna gececeksen buradan acabilir, polling kullanacaksan kapatabilirsin.</p>
+        <form method="post" action="/settings/telegram/webhook/activate" class="stack-form">
+            <button type="submit" class="primary-btn">Webhooku Aktif Et</button>
+        </form>
+        <form method="post" action="/settings/telegram/webhook/deactivate" class="stack-form top-gap">
+            <button type="submit" class="secondary-btn">Webhooku Kapat</button>
+        </form>
+    </section>
+</div>
+{% endblock %}

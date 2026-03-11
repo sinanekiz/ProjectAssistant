@@ -337,3 +337,68 @@ select {
 .top-gap {
     margin-top: 14px;
 }
+
+
+.checkbox-list {
+    max-height: 320px;
+    overflow: auto;
+    padding-right: 6px;
+}
+
+.checkbox-item {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.72);
+}
+
+.checkbox-item input {
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    padding: 0;
+}
+
+.checkbox-item span {
+    display: block;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.teams-chat-picker .checkbox-item {
+    margin-bottom: 8px;
+}
+
+.subscriptions-table {
+    table-layout: fixed;
+}
+
+.subscriptions-table th:nth-child(1),
+.subscriptions-table td:nth-child(1) {
+    width: 34%;
+}
+
+.subscriptions-table th:nth-child(2),
+.subscriptions-table td:nth-child(2) {
+    width: 18%;
+    word-break: break-word;
+}
+
+.subscriptions-table th:nth-child(3),
+.subscriptions-table td:nth-child(3) {
+    width: 34%;
+    word-break: break-word;
+}
+
+.subscriptions-table th:nth-child(4),
+.subscriptions-table td:nth-child(4) {
+    width: 14%;
+}
+
+.subscriptions-table input {
+    min-width: 220px;
+}

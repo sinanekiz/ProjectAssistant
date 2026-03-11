@@ -248,7 +248,7 @@ class GraphClient:
     def list_chat_members(self, *, chat_id: str, access_mode: Literal["app", "delegated"] = "app") -> list[dict[str, Any]] | None:
         payload = self._get_graph_json(
             f"chats/{chat_id}/members",
-            params={"$top": "50"},
+            params=None,
             access_mode=access_mode,
         )
         if payload is None:

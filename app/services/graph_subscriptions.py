@@ -219,14 +219,38 @@ def _build_chat_member_label(client: GraphClient, chat_id: str, chat_type: str) 
 
     names: list[str] = []
     for member in members:
-        display_name = str(member.get("displayName") or member.get("email") or member.get("userId") or "").strip()
-        if display_name:
+        display_name = _extract_member_display_name(member)
+        if display_name and display_name not in names:
             names.append(display_name)
     if not names:
         return ""
     if chat_type == "oneOnOne" and len(names) >= 2:
         return " - ".join(names[:2])
     return ", ".join(names[:4])
+
+
+def _extract_member_display_name(member: dict[str, object]) -> str:
+    direct_keys = ("displayName", "email", "userId")
+    for key in direct_keys:
+        value = member.get(key)
+        if value:
+            return str(value).strip()
+
+    user_value = member.get("user")
+    if isinstance(user_value, dict):
+        for key in ("displayName", "userPrincipalName", "email", "id"):
+            value = user_value.get(key)
+            if value:
+                return str(value).strip()
+
+    additional = member.get("additionalData")
+    if isinstance(additional, dict):
+        for key in ("displayName", "userPrincipalName", "email"):
+            value = additional.get(key)
+            if value:
+                return str(value).strip()
+
+    return ""
 
 
 def _load_graph_subscriptions(

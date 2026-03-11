@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Genel Ayarlar | ProjectAssistant{% endblock %}
 
@@ -6,9 +6,9 @@
 <section class="hero-card">
     <div>
         <p class="eyebrow">Genel Ayarlar</p>
-        <h2>Temel uygulama, panel ve Telegram ayarlari</h2>
+        <h2>Temel uygulama, panel ve ortak servis ayarlari</h2>
         <p class="hero-copy">
-            Environment tarafinda sadece veritabani adresi tutulur. Diger ayarlar veritabaninda saklanir ve buradan yonetilir.
+            Environment tarafinda sadece veritabani adresi tutulur. Diger genel ayarlar veritabaninda saklanir ve buradan yonetilir.
         </p>
     </div>
     <div class="status-stack">
@@ -33,15 +33,6 @@
                     <option value="en" {% if values.PREFERRED_LANGUAGE == 'en' %}selected{% endif %}>English</option>
                 </select>
             </label>
-            <label>Telegram Bot Token<input name="telegram_bot_token" value="{{ values.TELEGRAM_BOT_TOKEN }}"></label>
-            <label>Telegram Chat ID<input name="telegram_chat_id" value="{{ values.TELEGRAM_CHAT_ID }}"></label>
-            <label>Telegram Approval Mode
-                <select name="telegram_approval_mode">
-                    <option value="polling" {% if values.TELEGRAM_APPROVAL_MODE == 'polling' %}selected{% endif %}>Polling</option>
-                    <option value="webhook" {% if values.TELEGRAM_APPROVAL_MODE == 'webhook' %}selected{% endif %}>Webhook</option>
-                </select>
-            </label>
-            <label>Telegram Poll Interval Seconds<input name="telegram_poll_interval_seconds" value="{{ values.TELEGRAM_POLL_INTERVAL_SECONDS }}"></label>
             <label>Public Webhook Base URL<input name="public_webhook_base_url" value="{{ values.PUBLIC_WEBHOOK_BASE_URL }}"></label>
             <label>OpenAI API Key<input name="openai_api_key" value="{{ values.OPENAI_API_KEY }}"></label>
             <label>Panel Username<input name="panel_login_username" value="{{ values.PANEL_LOGIN_USERNAME }}"></label>
@@ -50,17 +41,6 @@
             <div class="button-row">
                 <button type="submit" class="primary-btn">Genel Ayarlari Kaydet</button>
             </div>
-        </form>
-    </section>
-
-    <section class="panel-card">
-        <h3>Telegram Webhook</h3>
-        <p class="muted">Webhook moduna gececeksen buradan acabilir, polling kullanacaksan kapatabilirsin.</p>
-        <form method="post" action="/settings/general/telegram-webhook/activate" class="stack-form">
-            <button type="submit" class="primary-btn">Webhooku Aktif Et</button>
-        </form>
-        <form method="post" action="/settings/general/telegram-webhook/deactivate" class="stack-form top-gap">
-            <button type="submit" class="secondary-btn">Webhooku Kapat</button>
         </form>
     </section>
 

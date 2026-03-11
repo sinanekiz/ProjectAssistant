@@ -22,15 +22,17 @@ GENERAL_FORM_KEYS = [
     "APP_ENV",
     "LOG_LEVEL",
     "PREFERRED_LANGUAGE",
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_CHAT_ID",
-    "TELEGRAM_APPROVAL_MODE",
-    "TELEGRAM_POLL_INTERVAL_SECONDS",
     "PUBLIC_WEBHOOK_BASE_URL",
     "OPENAI_API_KEY",
     "PANEL_LOGIN_USERNAME",
     "PANEL_LOGIN_PASSWORD",
     "PANEL_SESSION_SECRET",
+]
+TELEGRAM_FORM_KEYS = [
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "TELEGRAM_APPROVAL_MODE",
+    "TELEGRAM_POLL_INTERVAL_SECONDS",
 ]
 TEAMS_FORM_KEYS = [
     "TARGET_NAME",
@@ -93,15 +95,21 @@ def get_general_form_defaults() -> dict[str, str]:
         "APP_ENV": settings.app_env,
         "LOG_LEVEL": settings.log_level,
         "PREFERRED_LANGUAGE": settings.preferred_language,
-        "TELEGRAM_BOT_TOKEN": settings.telegram_bot_token or "",
-        "TELEGRAM_CHAT_ID": settings.telegram_chat_id or "",
-        "TELEGRAM_APPROVAL_MODE": settings.telegram_approval_mode,
-        "TELEGRAM_POLL_INTERVAL_SECONDS": str(settings.telegram_poll_interval_seconds),
         "PUBLIC_WEBHOOK_BASE_URL": settings.public_webhook_base_url or "",
         "OPENAI_API_KEY": settings.openai_api_key or "",
         "PANEL_LOGIN_USERNAME": settings.panel_login_username,
         "PANEL_LOGIN_PASSWORD": settings.panel_login_password or "",
         "PANEL_SESSION_SECRET": settings.panel_session_secret or "",
+    }
+
+
+def get_telegram_form_defaults() -> dict[str, str]:
+    settings = get_settings()
+    return {
+        "TELEGRAM_BOT_TOKEN": settings.telegram_bot_token or "",
+        "TELEGRAM_CHAT_ID": settings.telegram_chat_id or "",
+        "TELEGRAM_APPROVAL_MODE": settings.telegram_approval_mode,
+        "TELEGRAM_POLL_INTERVAL_SECONDS": str(settings.telegram_poll_interval_seconds),
     }
 
 
@@ -129,6 +137,11 @@ def save_general_settings(values: dict[str, Any]) -> None:
     database_url = str(values.get("DATABASE_URL", "")).strip()
     save_database_url(database_url)
     write_runtime_settings(database_url, _map_form_values(values, GENERAL_FORM_KEYS, get_general_form_defaults()))
+
+
+def save_telegram_settings(values: dict[str, Any]) -> None:
+    settings = get_settings()
+    write_runtime_settings(settings.database_url, _map_form_values(values, TELEGRAM_FORM_KEYS, get_telegram_form_defaults()))
 
 
 def save_teams_settings(values: dict[str, Any]) -> None:
