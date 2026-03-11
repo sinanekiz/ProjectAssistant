@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-from json import JSONDecodeError, loads
 from pathlib import Path
 from urllib.parse import quote
 
@@ -10,17 +9,24 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.adapters.telegram_client import TelegramClient
 from app.config import get_settings
 from app.db.models import TeamsMessage, TriageResult
 from app.db.session import get_session_factory, reset_db_state
 from app.logging import configure_logging, get_recent_logs, get_logger
-from app.services.activity_store import append_activity, append_question, list_recent_activity, list_recent_questions
-from app.services.graph_subscriptions import build_manual_chat_target, load_graph_console_data, subscribe_to_targets
-from app.services.message_ingest import ingest_teams_message
-from app.services.ops_assistant import answer_manual_question
-from app.services.setup_manager import get_config_summary, get_form_defaults, is_setup_complete, save_setup, test_database_connection
+from app.services.activity_store import append_activity
+from app.services.app_settings import read_chat_labels
+from app.services.graph_subscriptions import build_manual_chat_target, load_teams_settings_data, save_subscription_labels, subscribe_to_targets
+from app.services.setup_manager import (
+    get_general_config_summary,
+    get_general_form_defaults,
+    get_teams_form_defaults,
+    is_setup_complete,
+    save_general_settings,
+    save_teams_settings,
+    test_database_connection,
+)
 from app.services.telegram_polling import refresh_telegram_polling_state
-from app.services.triage import triage_message
 
 router = APIRouter(tags=["control-panel"])
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "ui" / "templates"
@@ -30,10 +36,9 @@ logger = get_logger(__name__)
 
 @router.get("/", response_class=HTMLResponse, response_model=None)
 def root(request: Request) -> RedirectResponse:
-    if not _is_authenticated(request):
-        return _redirect_to_login(request, "/console")
-    target = "/console" if is_setup_complete() else "/setup"
-    return RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
+    if not _is_authenticated(request) and get_settings().panel_auth_configured:
+        return _redirect_to_login("/console")
+    return RedirectResponse(url="/console" if is_setup_complete() else "/settings/general", status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/login", response_class=HTMLResponse, response_model=None)
@@ -59,16 +64,7 @@ def login_submit(
 ) -> HTMLResponse | RedirectResponse:
     settings = get_settings()
     if not settings.panel_auth_configured:
-        return templates.TemplateResponse(
-            request=request,
-            name="login.html",
-            context={
-                "error": "Panel girisi henuz yapilandirilmamis. Render veya .env icinde PANEL_LOGIN_PASSWORD ve PANEL_SESSION_SECRET ayarlarini tanimla.",
-                "auth_configured": False,
-                "is_authenticated": False,
-            },
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
+        return RedirectResponse(url="/settings/general", status_code=status.HTTP_302_FOUND)
 
     if username != settings.panel_login_username or password != settings.panel_login_password:
         return templates.TemplateResponse(
@@ -94,40 +90,144 @@ def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/setup", response_class=HTMLResponse, response_model=None)
-def setup_page(request: Request, notice: str | None = None, db_message: str | None = None) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/setup")
+@router.get("/setup", response_model=None)
+def setup_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/settings/general", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/console", response_class=HTMLResponse, response_model=None)
+def console_page(request: Request) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
         return access_redirect
-
-    return templates.TemplateResponse(
-        request=request,
-        name="setup.html",
-        context={
-            "values": get_form_defaults(),
-            "notice": notice,
-            "db_message": db_message,
-            "setup_complete": is_setup_complete(),
-            "is_authenticated": True,
-        },
-    )
+    if not is_setup_complete():
+        return RedirectResponse(url="/settings/general", status_code=status.HTTP_302_FOUND)
+    return _render_dashboard(request=request)
 
 
-@router.post("/setup", response_class=HTMLResponse, response_model=None)
-async def save_setup_page(
+@router.get("/settings/general", response_class=HTMLResponse, response_model=None)
+def general_settings_page(request: Request, notice: str | None = None, db_message: str | None = None, errors: list[str] | None = None) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/general")
+    if access_redirect is not None:
+        return access_redirect
+    return _render_general_settings(request=request, notice=notice, db_message=db_message, errors=errors or [])
+
+
+@router.post("/settings/general", response_class=HTMLResponse, response_model=None)
+async def save_general_settings_page(
     request: Request,
+    database_url: str = Form(""),
     app_name: str = Form("ProjectAssistant"),
     app_env: str = Form("local"),
     log_level: str = Form("INFO"),
-    database_url: str = Form(""),
-    postgres_db: str = Form("projectassistant"),
-    postgres_user: str = Form("projectassistant"),
-    postgres_password: str = Form("projectassistant"),
-    postgres_port: str = Form("5432"),
+    preferred_language: str = Form("tr"),
+    telegram_bot_token: str = Form(""),
+    telegram_chat_id: str = Form(""),
+    telegram_approval_mode: str = Form("polling"),
+    telegram_poll_interval_seconds: str = Form("5"),
+    public_webhook_base_url: str = Form(""),
+    openai_api_key: str = Form(""),
+    panel_login_username: str = Form("sinan"),
+    panel_login_password: str = Form(""),
+    panel_session_secret: str = Form(""),
+) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/general")
+    if access_redirect is not None:
+        return access_redirect
+
+    values = {
+        "DATABASE_URL": database_url,
+        "APP_NAME": app_name,
+        "APP_ENV": app_env,
+        "LOG_LEVEL": log_level,
+        "PREFERRED_LANGUAGE": preferred_language,
+        "TELEGRAM_BOT_TOKEN": telegram_bot_token,
+        "TELEGRAM_CHAT_ID": telegram_chat_id,
+        "TELEGRAM_APPROVAL_MODE": telegram_approval_mode,
+        "TELEGRAM_POLL_INTERVAL_SECONDS": telegram_poll_interval_seconds,
+        "PUBLIC_WEBHOOK_BASE_URL": public_webhook_base_url,
+        "OPENAI_API_KEY": openai_api_key,
+        "PANEL_LOGIN_USERNAME": panel_login_username,
+        "PANEL_LOGIN_PASSWORD": panel_login_password,
+        "PANEL_SESSION_SECRET": panel_session_secret,
+    }
+
+    ok, db_message = test_database_connection(database_url)
+    if ok:
+        save_general_settings(values)
+        from app.config import get_settings as get_cached_settings
+
+        get_cached_settings.cache_clear()
+        reset_db_state()
+        configure_logging()
+        await refresh_telegram_polling_state()
+        append_activity("general_settings_saved", "General settings saved", {"database_ok": ok})
+        return _render_general_settings(request=request, notice="Genel ayarlar kaydedildi.", db_message=db_message, errors=[])
+
+    return _render_general_settings(request=request, notice="", db_message=db_message, errors=["Veritabani baglantisi kurulamadigi icin ayarlar kaydedilmedi."])
+
+
+@router.post("/settings/general/telegram-webhook/activate", response_class=HTMLResponse, response_model=None)
+async def activate_telegram_webhook(request: Request) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/general")
+    if access_redirect is not None:
+        return access_redirect
+
+    settings = get_settings()
+    errors: list[str] = []
+    notice = ""
+    if not settings.telegram_bot_token:
+        errors.append("Telegram bot token eksik.")
+    elif not settings.public_webhook_base_url:
+        errors.append("PUBLIC_WEBHOOK_BASE_URL ayari eksik.")
+    else:
+        webhook_url = settings.public_webhook_base_url.rstrip("/") + "/webhooks/telegram"
+        client = TelegramClient(bot_token=settings.telegram_bot_token)
+        if client.set_webhook(webhook_url=webhook_url):
+            notice = "Telegram webhook aktif edildi. Approval mode degerini webhook olarak kullanman tavsiye edilir."
+        else:
+            errors.append("Telegram webhook aktif edilemedi.")
+
+    await refresh_telegram_polling_state()
+    return _render_general_settings(request=request, notice=notice, db_message=None, errors=errors)
+
+
+@router.post("/settings/general/telegram-webhook/deactivate", response_class=HTMLResponse, response_model=None)
+async def deactivate_telegram_webhook(request: Request) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/general")
+    if access_redirect is not None:
+        return access_redirect
+
+    settings = get_settings()
+    errors: list[str] = []
+    notice = ""
+    if not settings.telegram_bot_token:
+        errors.append("Telegram bot token eksik.")
+    else:
+        client = TelegramClient(bot_token=settings.telegram_bot_token)
+        if client.delete_webhook():
+            notice = "Telegram webhook kapatildi. Polling kullanacaksan artik conflict gormemelisin."
+        else:
+            errors.append("Telegram webhook kapatilamadi.")
+
+    await refresh_telegram_polling_state()
+    return _render_general_settings(request=request, notice=notice, db_message=None, errors=errors)
+
+
+@router.get("/settings/teams", response_class=HTMLResponse, response_model=None)
+def teams_settings_page(request: Request, notice: str | None = None, errors: list[str] | None = None) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/teams")
+    if access_redirect is not None:
+        return access_redirect
+    return _render_teams_settings(request=request, notice=notice or "", errors=errors or [], fetch_targets=False)
+
+
+@router.post("/settings/teams", response_class=HTMLResponse, response_model=None)
+async def save_teams_settings_page(
+    request: Request,
+    target_name: str = Form("Sinan"),
     watched_channels: str = Form(""),
     relevance_keywords: str = Form(""),
-    target_name: str = Form("Sinan"),
-    preferred_language: str = Form("tr"),
     microsoft_tenant_id: str = Form(""),
     microsoft_client_id: str = Form(""),
     microsoft_client_secret: str = Form(""),
@@ -139,33 +239,15 @@ async def save_setup_page(
     teams_webhook_secret: str = Form(""),
     teams_bot_token: str = Form(""),
     teams_reply_url: str = Form(""),
-    telegram_bot_token: str = Form(""),
-    telegram_chat_id: str = Form(""),
-    telegram_approval_mode: str = Form("polling"),
-    telegram_poll_interval_seconds: str = Form("5"),
-    public_webhook_base_url: str = Form(""),
-    openai_api_key: str = Form(""),
-    panel_login_username: str = Form("sinan"),
-    panel_login_password: str = Form(""),
-    panel_session_secret: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/setup")
+    access_redirect = _guard_settings_access(request, "/settings/teams")
     if access_redirect is not None:
         return access_redirect
 
     values = {
-        "APP_NAME": app_name,
-        "APP_ENV": app_env,
-        "LOG_LEVEL": log_level,
-        "DATABASE_URL": database_url,
-        "POSTGRES_DB": postgres_db,
-        "POSTGRES_USER": postgres_user,
-        "POSTGRES_PASSWORD": postgres_password,
-        "POSTGRES_PORT": postgres_port,
+        "TARGET_NAME": target_name,
         "WATCHED_CHANNELS": watched_channels,
         "RELEVANCE_KEYWORDS": relevance_keywords,
-        "TARGET_NAME": target_name,
-        "PREFERRED_LANGUAGE": preferred_language,
         "MICROSOFT_TENANT_ID": microsoft_tenant_id,
         "MICROSOFT_CLIENT_ID": microsoft_client_id,
         "MICROSOFT_CLIENT_SECRET": microsoft_client_secret,
@@ -177,17 +259,8 @@ async def save_setup_page(
         "TEAMS_WEBHOOK_SECRET": teams_webhook_secret,
         "TEAMS_BOT_TOKEN": teams_bot_token,
         "TEAMS_REPLY_URL": teams_reply_url,
-        "TELEGRAM_BOT_TOKEN": telegram_bot_token,
-        "TELEGRAM_CHAT_ID": telegram_chat_id,
-        "TELEGRAM_APPROVAL_MODE": telegram_approval_mode,
-        "TELEGRAM_POLL_INTERVAL_SECONDS": telegram_poll_interval_seconds,
-        "PUBLIC_WEBHOOK_BASE_URL": public_webhook_base_url,
-        "OPENAI_API_KEY": openai_api_key,
-        "PANEL_LOGIN_USERNAME": panel_login_username,
-        "PANEL_LOGIN_PASSWORD": panel_login_password,
-        "PANEL_SESSION_SECRET": panel_session_secret,
     }
-    save_setup(values)
+    save_teams_settings(values)
 
     from app.config import get_settings as get_cached_settings
 
@@ -195,142 +268,67 @@ async def save_setup_page(
     reset_db_state()
     configure_logging()
     await refresh_telegram_polling_state()
-
-    ok, db_message = test_database_connection(database_url)
-    append_activity("setup_saved", "Setup values saved", {"database_ok": ok})
-    logger.info("setup_saved", extra={"database_ok": ok})
-
-    return templates.TemplateResponse(
-        request=request,
-        name="setup.html",
-        context={
-            "values": get_form_defaults(),
-            "notice": "Ayarlar kaydedildi.",
-            "db_message": db_message,
-            "setup_complete": is_setup_complete(),
-            "is_authenticated": True,
-        },
-    )
+    append_activity("teams_settings_saved", "Teams settings saved", {})
+    return _render_teams_settings(request=request, notice="Teams ayarlari kaydedildi.", errors=[], fetch_targets=False)
 
 
-@router.get("/console", response_class=HTMLResponse, response_model=None)
-def console_page(request: Request) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/console")
+@router.post("/settings/teams/fetch-chats", response_class=HTMLResponse, response_model=None)
+def fetch_team_chats(request: Request) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/teams")
     if access_redirect is not None:
         return access_redirect
-    if not is_setup_complete():
-        return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
-    return _render_console(request=request)
+    return _render_teams_settings(request=request, notice="Chat listesi yenilendi.", errors=[], fetch_targets=True)
 
 
-@router.post("/console/question", response_class=HTMLResponse, response_model=None)
-def ask_question(request: Request, question: str = Form("")) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/console")
-    if access_redirect is not None:
-        return access_redirect
-    if not is_setup_complete():
-        return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
-
-    db = _maybe_open_session()
-    try:
-        answer = answer_manual_question(question, db=db)
-    finally:
-        if db is not None:
-            db.close()
-
-    append_question(question, answer)
-    append_activity("manual_question", "Manual ops question asked", {"question": question})
-    return _render_console(request=request, question=question, answer=answer)
-
-
-@router.post("/console/test-teams", response_class=HTMLResponse, response_model=None)
-def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/console")
-    if access_redirect is not None:
-        return access_redirect
-    if not is_setup_complete():
-        return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
-
-    test_result = ""
-    db = _maybe_open_session()
-    if db is None:
-        test_result = "DB baglantisi kurulamadigi icin Teams payload testi calistirilamadi."
-        return _render_console(request=request, payload_json=payload_json, test_result=test_result)
-
-    try:
-        payload = loads(payload_json)
-        message, created, reasons, duplicate = ingest_teams_message(db=db, payload=payload)
-        triage_result = None
-        if created and message.is_relevant:
-            triage_result = triage_message(db=db, message=message)
-
-        triage_text = "triage yok"
-        approval_text = "approval yok"
-        if triage_result is not None:
-            triage_text = f"triage_id={triage_result.id}, category={triage_result.category}, priority={triage_result.priority}"
-            if triage_result.approval_request is not None:
-                approval_text = (
-                    f"approval_id={triage_result.approval_request.id}, "
-                    f"status={triage_result.approval_request.status}"
-                )
-
-        test_result = (
-            f"Teams payload islendi. message_id={message.id}, relevant={message.is_relevant}, "
-            f"created={created}, duplicate={duplicate}, reasons={', '.join(reasons) or 'none'}, "
-            f"{triage_text}, {approval_text}"
-        )
-        append_activity("manual_teams_test", "Manual Teams payload tested", {"message_id": message.id})
-    except JSONDecodeError:
-        test_result = "JSON parse edilemedi. Gecerli bir JSON gondermelisin."
-    except Exception as exc:  # pragma: no cover - defensive runtime path
-        test_result = f"Teams payload islenemedi: {exc}"
-    finally:
-        db.close()
-
-    return _render_console(request=request, payload_json=payload_json, test_result=test_result)
-
-
-@router.post("/console/graph/subscribe", response_class=HTMLResponse, response_model=None)
+@router.post("/settings/teams/subscribe", response_class=HTMLResponse, response_model=None)
 def subscribe_graph_targets(
     request: Request,
     target_values: list[str] = Form([]),
     manual_chat_reference: str = Form(""),
+    manual_chat_label: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
-    access_redirect = _guard_panel_access(request, "/console")
+    access_redirect = _guard_settings_access(request, "/settings/teams")
     if access_redirect is not None:
         return access_redirect
-    if not is_setup_complete():
-        return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
     effective_target_values = list(target_values)
+    errors: list[str] = []
     if manual_chat_reference.strip():
-        manual_target, manual_error = build_manual_chat_target(manual_chat_reference)
+        manual_target, manual_error = build_manual_chat_target(manual_chat_reference, manual_chat_label)
         if manual_target is not None:
             effective_target_values.append(manual_target.value)
-        else:
-            return _render_console(request=request, graph_notice="", graph_extra_errors=[manual_error] if manual_error else None)
+        elif manual_error:
+            errors.append(manual_error)
 
     result = subscribe_to_targets(effective_target_values)
     append_activity(
         "graph_subscription_request",
-        "Graph channel subscription request processed",
-        {"selected_count": len(effective_target_values), "errors": result.errors},
+        "Graph chat subscription request processed",
+        {"selected_count": len(effective_target_values), "errors": result.errors + errors},
     )
-    return _render_console(request=request, graph_notice=result.notice, graph_extra_errors=result.errors)
+    return _render_teams_settings(request=request, notice=result.notice, errors=result.errors + errors, fetch_targets=False)
 
 
-def _render_console(
-    *,
+@router.post("/settings/teams/labels", response_class=HTMLResponse, response_model=None)
+def update_subscription_labels(
     request: Request,
-    question: str = "",
-    answer: str = "",
-    payload_json: str = "",
-    test_result: str = "",
-    graph_notice: str = "",
-    graph_extra_errors: list[str] | None = None,
-) -> HTMLResponse:
+    chat_ids: list[str] = Form([]),
+    chat_labels: list[str] = Form([]),
+) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/teams")
+    if access_redirect is not None:
+        return access_redirect
+
+    label_updates = {chat_id: label for chat_id, label in zip(chat_ids, chat_labels, strict=False)}
+    result = save_subscription_labels(label_updates)
+    append_activity("graph_labels_saved", "Graph chat labels updated", {"count": len(label_updates)})
+    return _render_teams_settings(request=request, notice=result.notice, errors=result.errors, fetch_targets=False)
+
+
+def _render_dashboard(*, request: Request) -> HTMLResponse:
     settings = get_settings()
     db_ok, db_message = test_database_connection(settings.database_url)
+    chat_labels = read_chat_labels(settings.database_url)
 
     recent_messages: list[TeamsMessage] = []
     messages_error = ""
@@ -344,55 +342,88 @@ def _render_console(
                     select(TeamsMessage)
                     .options(selectinload(TeamsMessage.triage_result).selectinload(TriageResult.approval_request))
                     .order_by(desc(TeamsMessage.created_at))
-                    .limit(12)
+                    .limit(20)
                 )
             )
-    except Exception as exc:  # pragma: no cover - defensive runtime path
+    except Exception as exc:  # pragma: no cover
         messages_error = str(exc)
     finally:
         if db is not None:
             db.close()
 
-    available_targets, graph_subscriptions, graph_errors = load_graph_console_data()
-    if graph_extra_errors:
-        graph_errors.extend(graph_extra_errors)
-
     return templates.TemplateResponse(
         request=request,
-        name="console.html",
+        name="dashboard.html",
         context={
-            "setup_complete": is_setup_complete(),
-            "config_summary": get_config_summary(),
-            "recent_logs": get_recent_logs(30),
-            "recent_activity": list_recent_activity(20),
-            "recent_questions": list_recent_questions(12),
-            "recent_messages": recent_messages,
-            "messages_error": messages_error,
             "db_ok": db_ok,
             "db_message": db_message,
-            "question": question,
-            "answer": answer,
-            "payload_json": payload_json,
-            "test_result": test_result,
+            "recent_messages": recent_messages,
+            "recent_logs": get_recent_logs(40),
+            "messages_error": messages_error,
+            "chat_labels": chat_labels,
+            "is_authenticated": _is_authenticated(request),
+        },
+    )
+
+
+def _render_general_settings(
+    *,
+    request: Request,
+    notice: str | None,
+    db_message: str | None,
+    errors: list[str],
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="settings_general.html",
+        context={
+            "values": get_general_form_defaults(),
+            "config_summary": get_general_config_summary(),
+            "notice": notice,
+            "db_message": db_message,
+            "errors": errors,
+            "setup_complete": is_setup_complete(),
+            "is_authenticated": _is_authenticated(request),
+        },
+    )
+
+
+def _render_teams_settings(*, request: Request, notice: str, errors: list[str], fetch_targets: bool) -> HTMLResponse:
+    available_targets, graph_subscriptions, graph_errors = load_teams_settings_data(fetch_targets=fetch_targets)
+    return templates.TemplateResponse(
+        request=request,
+        name="settings_teams.html",
+        context={
+            "values": get_teams_form_defaults(),
+            "notice": notice,
+            "errors": errors + graph_errors,
             "available_targets": available_targets,
             "graph_subscriptions": graph_subscriptions,
-            "graph_errors": graph_errors,
-            "graph_notice": graph_notice,
-            "is_authenticated": True,
+            "fetch_targets": fetch_targets,
+            "is_authenticated": _is_authenticated(request),
         },
     )
 
 
 def _guard_panel_access(request: Request, next_url: str) -> RedirectResponse | None:
     settings = get_settings()
+    if settings.panel_auth_configured and not _is_authenticated(request):
+        return _redirect_to_login(next_url)
     if not settings.panel_auth_configured:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    if not _is_authenticated(request):
-        return _redirect_to_login(request, next_url)
+        return RedirectResponse(url="/settings/general", status_code=status.HTTP_302_FOUND)
     return None
 
 
-def _redirect_to_login(request: Request, next_url: str) -> RedirectResponse:
+def _guard_settings_access(request: Request, next_url: str) -> RedirectResponse | None:
+    settings = get_settings()
+    if not settings.panel_auth_configured:
+        return None
+    if not _is_authenticated(request):
+        return _redirect_to_login(next_url)
+    return None
+
+
+def _redirect_to_login(next_url: str) -> RedirectResponse:
     safe_next = _sanitize_next_url(next_url)
     return RedirectResponse(url=f"/login?next={quote(safe_next, safe='/?=&')}", status_code=status.HTTP_302_FOUND)
 
@@ -413,13 +444,3 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
-
-
-
-
-
-
-
-
-
-

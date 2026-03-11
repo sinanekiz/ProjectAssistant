@@ -1,0 +1,110 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Teams Ayarlari | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card console-hero">
+    <div>
+        <p class="eyebrow">Teams Ayarlari</p>
+        <h2>Graph baglantisi, relevance kurallari ve dinlenen chatler</h2>
+        <p class="hero-copy">
+            Bu sayfada Teams entegrasyon ayarlarini kaydedebilir, istedigin zaman chat listesini cekebilir, chat linki ile manuel abonelik olusturabilir ve dinledigin chatlerin label'larini duzenleyebilirsin.
+        </p>
+    </div>
+    <div class="status-stack">
+        {% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+        {% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+    </div>
+</section>
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Teams Konfigurasyonu</h3>
+        <form method="post" action="/settings/teams" class="grid-layout">
+            <label>Target Name<input name="target_name" value="{{ values.TARGET_NAME }}"></label>
+            <label>Watched Channels<input name="watched_channels" value="{{ values.WATCHED_CHANNELS }}"></label>
+            <label>Relevance Keywords<textarea name="relevance_keywords">{{ values.RELEVANCE_KEYWORDS }}</textarea></label>
+            <label>Microsoft Tenant ID<input name="microsoft_tenant_id" value="{{ values.MICROSOFT_TENANT_ID }}"></label>
+            <label>Microsoft Client ID<input name="microsoft_client_id" value="{{ values.MICROSOFT_CLIENT_ID }}"></label>
+            <label>Microsoft Client Secret<input type="password" name="microsoft_client_secret" value="{{ values.MICROSOFT_CLIENT_SECRET }}"></label>
+            <label>Microsoft User ID veya UPN<input name="microsoft_user_id" value="{{ values.MICROSOFT_USER_ID }}"></label>
+            <label>Microsoft Graph Base URL<input name="microsoft_graph_base_url" value="{{ values.MICROSOFT_GRAPH_BASE_URL }}"></label>
+            <label>Graph Webhook Client State<input name="graph_webhook_client_state" value="{{ values.GRAPH_WEBHOOK_CLIENT_STATE }}"></label>
+            <label>Graph Subscription Resource<input name="graph_subscription_resource" value="{{ values.GRAPH_SUBSCRIPTION_RESOURCE }}"></label>
+            <label>Graph Include Resource Data
+                <select name="graph_notification_include_resource_data">
+                    <option value="false" {% if values.GRAPH_NOTIFICATION_INCLUDE_RESOURCE_DATA == 'false' %}selected{% endif %}>false</option>
+                    <option value="true" {% if values.GRAPH_NOTIFICATION_INCLUDE_RESOURCE_DATA == 'true' %}selected{% endif %}>true</option>
+                </select>
+            </label>
+            <label>Teams Webhook Secret<input name="teams_webhook_secret" value="{{ values.TEAMS_WEBHOOK_SECRET }}"></label>
+            <label>Teams Bot Token<input name="teams_bot_token" value="{{ values.TEAMS_BOT_TOKEN }}"></label>
+            <label>Teams Reply URL<input name="teams_reply_url" value="{{ values.TEAMS_REPLY_URL }}"></label>
+            <div class="button-row">
+                <button type="submit" class="primary-btn">Teams Ayarlarini Kaydet</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Dinlenecek Chatler</h3>
+        <form method="post" action="/settings/teams/fetch-chats" class="stack-form">
+            <button type="submit" class="primary-btn">Chatleri Cek</button>
+        </form>
+        <form method="post" action="/settings/teams/subscribe" class="stack-form top-gap">
+            <label>Secilebilir Chatler</label>
+            <select name="target_values" multiple size="12">
+                {% for target in available_targets %}
+                <option value="{{ target.value }}">{{ target.label }}</option>
+                {% else %}
+                <option disabled>{% if fetch_targets %}Chat listesi bos veya alinamadi.{% else %}Chatleri gormek icin once Chatleri Cek butonuna bas.{% endif %}</option>
+                {% endfor %}
+            </select>
+            <label>Teams Chat Linki veya Chat ID</label>
+            <textarea name="manual_chat_reference" class="code-area" placeholder="https://teams.microsoft.com/l/chat/19:... veya 19:...@thread.v2"></textarea>
+            <label>Manuel Label<input name="manual_chat_label" placeholder="Ornek: Rahim - Build Sorunlari"></label>
+            <button type="submit" class="primary-btn">Secili Chatlere Abone Ol</button>
+        </form>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Dinlenen Chatler ve Label Duzenleme</h3>
+        <form method="post" action="/settings/teams/labels" class="stack-form">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>Subscription ID</th>
+                            <th>Resource</th>
+                            <th>Expires</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subscription in graph_subscriptions %}
+                        <tr>
+                            <td>
+                                {% if subscription.target_type == 'chat' and subscription.target_id %}
+                                <input type="hidden" name="chat_ids" value="{{ subscription.target_id }}">
+                                <input name="chat_labels" value="{{ subscription.label }}">
+                                {% else %}
+                                {{ subscription.label }}
+                                {% endif %}
+                            </td>
+                            <td>{{ subscription.subscription_id }}</td>
+                            <td>{{ subscription.resource }}</td>
+                            <td>{{ subscription.expiration or '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4">Henuz kayitli Teams chat aboneligi yok.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="button-row top-gap">
+                <button type="submit" class="secondary-btn">Labellari Kaydet</button>
+            </div>
+        </form>
+    </section>
+</div>
+{% endblock %}

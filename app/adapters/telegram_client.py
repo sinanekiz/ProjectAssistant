@@ -103,6 +103,24 @@ class TelegramClient:
             logger.warning("telegram_callback_answer_failed", extra={"description": parsed.description})
         return parsed.ok
 
+    def set_webhook(self, *, webhook_url: str) -> bool:
+        response_data = self._post(
+            "setWebhook",
+            {
+                "url": webhook_url,
+                "allowed_updates": ["message", "callback_query"],
+            },
+        )
+        if response_data is None:
+            return False
+        return TelegramGenericResponse.model_validate(response_data).ok
+
+    def delete_webhook(self) -> bool:
+        response_data = self._post("deleteWebhook", {"drop_pending_updates": False})
+        if response_data is None:
+            return False
+        return TelegramGenericResponse.model_validate(response_data).ok
+
     def _post(
         self,
         method: str,

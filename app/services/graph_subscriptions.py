@@ -5,9 +5,9 @@ import re
 
 from app.adapters.graph_client import GraphClient
 from app.config import get_settings
+from app.services.app_settings import read_chat_labels, write_chat_labels
 
 _CHAT_RESOURCE_RE = re.compile(r"^/?chats/(?P<chat_id>[^/]+)/messages$", re.IGNORECASE)
-_CHANNEL_RESOURCE_RE = re.compile(r"^/?teams/(?P<team_id>[^/]+)/channels/(?P<channel_id>[^/]+)/messages$", re.IGNORECASE)
 _CHAT_LINK_RE = re.compile(r"/l/chat/(?P<chat_id>19:[^/?]+)", re.IGNORECASE)
 _RAW_CHAT_ID_RE = re.compile(r"^(19:[A-Za-z0-9._=-]+@thread\.v2)$", re.IGNORECASE)
 
@@ -38,17 +38,22 @@ class GraphSubscriptionActionSummary:
     errors: list[str]
 
 
-def load_graph_console_data() -> tuple[list[GraphSubscriptionTarget], list[GraphSubscriptionView], list[str]]:
+def load_teams_settings_data(*, fetch_targets: bool = False) -> tuple[list[GraphSubscriptionTarget], list[GraphSubscriptionView], list[str]]:
     settings = get_settings()
     errors: list[str] = []
     if not settings.microsoft_tenant_id or not settings.microsoft_client_id or not settings.microsoft_client_secret:
-        return [], [], ["Microsoft Graph kimlik bilgileri eksik. Setup ekranindan tenant, client ve secret alanlarini doldur."]
-    if not settings.microsoft_user_id:
-        return [], [], ["MICROSOFT_USER_ID ayari eksik. Kendi kullanici object id veya UPN degerini setup ekranina gir."]
+        return [], [], ["Microsoft Graph kimlik bilgileri eksik. Teams ayarlari ekranindan tenant, client ve secret alanlarini doldur."]
 
     client = GraphClient.from_settings()
-    targets = _load_user_chats(client, settings.microsoft_user_id, errors)
-    subscriptions = _load_graph_subscriptions(client, targets, errors)
+    chat_labels = read_chat_labels(settings.database_url)
+    targets: list[GraphSubscriptionTarget] = []
+    if fetch_targets:
+        if not settings.microsoft_user_id:
+            errors.append("MICROSOFT_USER_ID ayari eksik. Kendi kullanici object id veya UPN degerini Teams ayarlarina gir.")
+        else:
+            targets = _load_user_chats(client, settings.microsoft_user_id, chat_labels, errors)
+
+    subscriptions = _load_graph_subscriptions(client, chat_labels, errors)
     return targets, subscriptions, errors
 
 
@@ -57,12 +62,13 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
     if not target_values:
         return GraphSubscriptionActionSummary(notice="Abone olmak icin en az bir chat secmelisin.", errors=[])
     if not settings.public_webhook_base_url:
-        return GraphSubscriptionActionSummary(notice="", errors=["PUBLIC_WEBHOOK_BASE_URL ayari eksik. Render URL'ini setup veya environment alanina gir."])
+        return GraphSubscriptionActionSummary(notice="", errors=["PUBLIC_WEBHOOK_BASE_URL ayari eksik. Render URL'ini genel ayarlar ekranina gir."])
 
     client = GraphClient.from_settings()
     notification_url = settings.public_webhook_base_url.rstrip("/") + "/webhooks/graph"
     existing_subscriptions = client.list_subscriptions() or []
     existing_resources = {normalize_resource(item.get("resource", "")) for item in existing_subscriptions}
+    chat_labels_to_save: dict[str, str] = {}
 
     created_labels: list[str] = []
     skipped_labels: list[str] = []
@@ -95,6 +101,10 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
 
         existing_resources.add(resource)
         created_labels.append(label)
+        chat_labels_to_save[target_id] = label
+
+    if chat_labels_to_save:
+        write_chat_labels(settings.database_url, chat_labels_to_save)
 
     parts: list[str] = []
     if created_labels:
@@ -109,7 +119,17 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
     return GraphSubscriptionActionSummary(notice=" ".join(parts), errors=errors)
 
 
-def build_manual_chat_target(chat_reference: str) -> tuple[GraphSubscriptionTarget | None, str | None]:
+def save_subscription_labels(label_updates: dict[str, str]) -> GraphSubscriptionActionSummary:
+    settings = get_settings()
+    cleaned = {chat_id: label.strip() for chat_id, label in label_updates.items() if chat_id.strip() and label.strip()}
+    if not cleaned:
+        return GraphSubscriptionActionSummary(notice="Kaydedilecek label degisikligi yok.", errors=[])
+
+    write_chat_labels(settings.database_url, cleaned)
+    return GraphSubscriptionActionSummary(notice=f"{len(cleaned)} chat label guncellendi.", errors=[])
+
+
+def build_manual_chat_target(chat_reference: str, label: str = "") -> tuple[GraphSubscriptionTarget | None, str | None]:
     normalized = chat_reference.strip()
     if not normalized:
         return None, "Chat linki veya chat id bos olamaz."
@@ -118,13 +138,13 @@ def build_manual_chat_target(chat_reference: str) -> tuple[GraphSubscriptionTarg
     if chat_id is None:
         return None, "Chat linkinden veya girdigin degerden gecerli bir chat id ayiklanamadi."
 
-    label = f"Chat / {chat_id}"
+    final_label = label.strip() or f"Chat / {chat_id}"
     return (
         GraphSubscriptionTarget(
             target_type="chat",
             target_id=chat_id,
-            label=label,
-            value=f"chat||{chat_id}||{label}",
+            label=final_label,
+            value=f"chat||{chat_id}||{final_label}",
             chat_id=chat_id,
         ),
         None,
@@ -156,10 +176,10 @@ def extract_chat_id(value: str) -> str | None:
     return None
 
 
-def _load_user_chats(client: GraphClient, user_id: str, errors: list[str]) -> list[GraphSubscriptionTarget]:
+def _load_user_chats(client: GraphClient, user_id: str, chat_labels: dict[str, str], errors: list[str]) -> list[GraphSubscriptionTarget]:
     chats = client.list_user_chats(user_id=user_id)
     if chats is None:
-        errors.append("Kullanici chat listesi Graph'tan alinamadi. MICROSOFT_USER_ID, Chat.ReadBasic.All ve admin consent ayarlarini kontrol et.")
+        errors.append("Kullanici chat listesi Graph'tan alinamadi. Teams web linki ile manuel chat ekleyebilirsin.")
         return []
 
     targets: list[GraphSubscriptionTarget] = []
@@ -170,19 +190,14 @@ def _load_user_chats(client: GraphClient, user_id: str, errors: list[str]) -> li
         chat_type = str(chat.get("chatType") or "unknown")
         topic = str(chat.get("topic") or "").strip()
         member_label = _build_chat_member_label(client, chat_id, chat_type)
-        if topic:
-            label_text = topic
-        elif member_label:
-            label_text = member_label
-        else:
-            label_text = chat_id
+        label_text = chat_labels.get(chat_id) or topic or member_label or chat_id
 
         chat_prefix = {
             "oneOnOne": "Kisi",
             "group": "Grup",
             "meeting": "Toplanti",
         }.get(chat_type, "Chat")
-        label = f"{chat_prefix} / {label_text}"
+        label = label_text if label_text.startswith(("Kisi /", "Grup /", "Toplanti /", "Chat /")) else f"{chat_prefix} / {label_text}"
         targets.append(
             GraphSubscriptionTarget(
                 target_type="chat",
@@ -216,19 +231,13 @@ def _build_chat_member_label(client: GraphClient, chat_id: str, chat_type: str) 
 
 def _load_graph_subscriptions(
     client: GraphClient,
-    targets: list[GraphSubscriptionTarget],
+    chat_labels: dict[str, str],
     errors: list[str],
 ) -> list[GraphSubscriptionView]:
     subscription_payloads = client.list_subscriptions()
     if subscription_payloads is None:
         errors.append("Mevcut Graph abonelikleri alinamadi.")
         return []
-
-    chat_labels = {
-        target.chat_id: target.label
-        for target in targets
-        if target.target_type == "chat"
-    }
 
     subscriptions: list[GraphSubscriptionView] = []
     for item in subscription_payloads:
@@ -243,12 +252,6 @@ def _load_graph_subscriptions(
             label = chat_labels.get(chat_id, f"Chat / {chat_id}")
             target_type = "chat"
             target_id = chat_id
-        else:
-            channel_match = _CHANNEL_RESOURCE_RE.match(resource)
-            if channel_match is not None:
-                target_type = "channel"
-                target_id = f"{channel_match.group('team_id')}:{channel_match.group('channel_id')}"
-                label = f"Kanal / {channel_match.group('team_id')} / {channel_match.group('channel_id')}"
 
         subscriptions.append(
             GraphSubscriptionView(

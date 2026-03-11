@@ -10,13 +10,14 @@
     <div class="page-shell">
         <header class="topbar">
             <div>
-                <p class="eyebrow">ProjectAssistant Control Surface</p>
-                <h1 class="brand-title">Sinan icin kurulum ve operasyon paneli</h1>
+                <p class="eyebrow">ProjectAssistant</p>
+                <h1 class="brand-title">Sinan icin mesaj asistani</h1>
             </div>
             <nav class="topnav">
                 {% if is_authenticated %}
-                <a href="/setup">Kurulum</a>
-                <a href="/console">Panel</a>
+                <a href="/console">Ana Sayfa</a>
+                <a href="/settings/general">Genel Ayarlar</a>
+                <a href="/settings/teams">Teams Ayarlari</a>
                 <a href="/logout">Cikis</a>
                 {% else %}
                 <a href="/login">Giris</a>
@@ -29,4 +30,3 @@
     </div>
 </body>
 </html>
-

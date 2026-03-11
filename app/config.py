@@ -6,6 +6,8 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, PydanticBaseSettingsSource, SettingsConfigDict
 
+from app.services.app_settings import read_runtime_settings
+
 LanguageCode = Literal["tr", "en"]
 TelegramApprovalMode = Literal["polling", "webhook"]
 
@@ -90,6 +92,11 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    base_settings = Settings()
+    db_overrides = read_runtime_settings(base_settings.database_url)
+    if not db_overrides:
+        return base_settings
 
-
+    merged_values = base_settings.model_dump()
+    merged_values.update(db_overrides)
+    return Settings.model_validate(merged_values)

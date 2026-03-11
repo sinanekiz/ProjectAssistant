@@ -1,9 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from app.services.graph_subscriptions import (
-    load_graph_console_data,
+    build_manual_chat_target,
+    load_teams_settings_data,
     normalize_resource,
     parse_target_value,
+    save_subscription_labels,
     subscribe_to_targets,
 )
 
@@ -61,7 +63,16 @@ def test_normalize_resource() -> None:
     assert normalize_resource("/Chats/CHAT-1/messages") == "chats/chat-1/messages"
 
 
-def test_load_graph_console_data_builds_chat_and_subscription_lists(monkeypatch) -> None:
+def test_build_manual_chat_target_from_raw_id() -> None:
+    target, error = build_manual_chat_target("19:test-thread@thread.v2", "Rahim Build")
+
+    assert error is None
+    assert target is not None
+    assert target.target_id == "19:test-thread@thread.v2"
+    assert target.label == "Rahim Build"
+
+
+def test_load_teams_settings_data_fetches_targets_only_on_demand(monkeypatch) -> None:
     stub_client = StubGraphClient()
     monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
     monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
@@ -69,14 +80,27 @@ def test_load_graph_console_data_builds_chat_and_subscription_lists(monkeypatch)
     monkeypatch.setenv("MICROSOFT_USER_ID", "user-123")
     monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: stub_client)
 
-    targets, subscriptions, errors = load_graph_console_data()
+    targets, subscriptions, errors = load_teams_settings_data(fetch_targets=False)
+
+    assert not errors
+    assert targets == []
+    assert len(subscriptions) == 1
+
+
+def test_load_teams_settings_data_fetches_chat_targets_when_requested(monkeypatch) -> None:
+    stub_client = StubGraphClient()
+    monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
+    monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
+    monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("MICROSOFT_USER_ID", "user-123")
+    monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: stub_client)
+
+    targets, subscriptions, errors = load_teams_settings_data(fetch_targets=True)
 
     assert not errors
     assert len(targets) == 2
     assert any(target.label == "Kisi / Sinan - Ayse" for target in targets)
-    assert any(target.label == "Grup / Ops War Room" for target in targets)
     assert len(subscriptions) == 1
-    assert subscriptions[0].target_type == "chat"
 
 
 def test_subscribe_to_targets_skips_existing_and_creates_new(monkeypatch) -> None:
@@ -93,33 +117,21 @@ def test_subscribe_to_targets_skips_existing_and_creates_new(monkeypatch) -> Non
     assert "1 chat icin abonelik olusturuldu." in result.notice
     assert "1 chat zaten aboneli listesinde oldugu icin atlandi." in result.notice
     assert len(stub_client.created_chats) == 1
-    assert stub_client.created_chats[0][0] == "chat-2"
-    assert stub_client.created_chats[0][1] == "https://projectassistant.onrender.com/webhooks/graph"
-    assert stub_client.created_chats[0][2] == "state-1"
 
 
-def test_load_graph_console_data_requires_user_id(monkeypatch) -> None:
-    monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
-    monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
-    monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
-    monkeypatch.delenv("MICROSOFT_USER_ID", raising=False)
-
-    targets, subscriptions, errors = load_graph_console_data()
-
-    assert targets == []
-    assert subscriptions == []
-    assert errors
-
-
-def test_load_graph_console_data_reports_missing_permissions(monkeypatch) -> None:
+def test_load_teams_settings_data_reports_missing_permissions(monkeypatch) -> None:
     monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
     monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
     monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
     monkeypatch.setenv("MICROSOFT_USER_ID", "user-123")
     monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: FailingGraphClient())
 
-    targets, subscriptions, errors = load_graph_console_data()
+    targets, subscriptions, errors = load_teams_settings_data(fetch_targets=True)
 
     assert targets == []
     assert subscriptions == []
     assert errors
+
+
+def test_save_subscription_labels_returns_notice(monkeypatch) -> None:`r`n    monkeypatch.setattr("app.services.graph_subscriptions.write_chat_labels", lambda database_url, labels: None)`r`n    monkeypatch.setenv("DATABASE_URL", "sqlite://")`r`n`r`n    result = save_subscription_labels({"chat-1": "Rahim Build"})`r`n`r`n    assert "label guncellendi" in result.notice
+

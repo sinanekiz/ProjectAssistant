@@ -1,28 +1,41 @@
 ﻿from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, text
 
 from app.config import get_settings
+from app.services.app_settings import save_database_url, write_runtime_settings
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-ENV_FILE_PATH = ROOT_DIR / ".env"
-REQUIRED_SETUP_KEYS = ("DATABASE_URL", "TARGET_NAME")
-SETUP_KEYS = [
+REQUIRED_SETUP_KEYS = ("DATABASE_URL",)
+SECRET_KEYS = {
+    "MICROSOFT_CLIENT_SECRET",
+    "TEAMS_WEBHOOK_SECRET",
+    "TEAMS_BOT_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "OPENAI_API_KEY",
+    "PANEL_LOGIN_PASSWORD",
+    "PANEL_SESSION_SECRET",
+}
+GENERAL_FORM_KEYS = [
     "APP_NAME",
     "APP_ENV",
     "LOG_LEVEL",
-    "DATABASE_URL",
-    "POSTGRES_DB",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "POSTGRES_PORT",
+    "PREFERRED_LANGUAGE",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "TELEGRAM_APPROVAL_MODE",
+    "TELEGRAM_POLL_INTERVAL_SECONDS",
+    "PUBLIC_WEBHOOK_BASE_URL",
+    "OPENAI_API_KEY",
+    "PANEL_LOGIN_USERNAME",
+    "PANEL_LOGIN_PASSWORD",
+    "PANEL_SESSION_SECRET",
+]
+TEAMS_FORM_KEYS = [
+    "TARGET_NAME",
     "WATCHED_CHANNELS",
     "RELEVANCE_KEYWORDS",
-    "TARGET_NAME",
-    "PREFERRED_LANGUAGE",
     "MICROSOFT_TENANT_ID",
     "MICROSOFT_CLIENT_ID",
     "MICROSOFT_CLIENT_SECRET",
@@ -34,63 +47,70 @@ SETUP_KEYS = [
     "TEAMS_WEBHOOK_SECRET",
     "TEAMS_BOT_TOKEN",
     "TEAMS_REPLY_URL",
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_CHAT_ID",
-    "TELEGRAM_APPROVAL_MODE",
-    "TELEGRAM_POLL_INTERVAL_SECONDS",
-    "PUBLIC_WEBHOOK_BASE_URL",
-    "OPENAI_API_KEY",
-    "PANEL_LOGIN_USERNAME",
-    "PANEL_LOGIN_PASSWORD",
-    "PANEL_SESSION_SECRET",
 ]
-SECRET_KEYS = {
-    "POSTGRES_PASSWORD",
-    "MICROSOFT_CLIENT_SECRET",
-    "TEAMS_WEBHOOK_SECRET",
-    "TEAMS_BOT_TOKEN",
-    "TELEGRAM_BOT_TOKEN",
-    "OPENAI_API_KEY",
-    "PANEL_LOGIN_PASSWORD",
-    "PANEL_SESSION_SECRET",
+
+_FIELD_MAP = {
+    "APP_NAME": "app_name",
+    "APP_ENV": "app_env",
+    "LOG_LEVEL": "log_level",
+    "PREFERRED_LANGUAGE": "preferred_language",
+    "TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+    "TELEGRAM_CHAT_ID": "telegram_chat_id",
+    "TELEGRAM_APPROVAL_MODE": "telegram_approval_mode",
+    "TELEGRAM_POLL_INTERVAL_SECONDS": "telegram_poll_interval_seconds",
+    "PUBLIC_WEBHOOK_BASE_URL": "public_webhook_base_url",
+    "OPENAI_API_KEY": "openai_api_key",
+    "PANEL_LOGIN_USERNAME": "panel_login_username",
+    "PANEL_LOGIN_PASSWORD": "panel_login_password",
+    "PANEL_SESSION_SECRET": "panel_session_secret",
+    "TARGET_NAME": "target_name",
+    "WATCHED_CHANNELS": "watched_channels",
+    "RELEVANCE_KEYWORDS": "relevance_keywords",
+    "MICROSOFT_TENANT_ID": "microsoft_tenant_id",
+    "MICROSOFT_CLIENT_ID": "microsoft_client_id",
+    "MICROSOFT_CLIENT_SECRET": "microsoft_client_secret",
+    "MICROSOFT_USER_ID": "microsoft_user_id",
+    "MICROSOFT_GRAPH_BASE_URL": "microsoft_graph_base_url",
+    "GRAPH_WEBHOOK_CLIENT_STATE": "graph_webhook_client_state",
+    "GRAPH_SUBSCRIPTION_RESOURCE": "graph_subscription_resource",
+    "GRAPH_NOTIFICATION_INCLUDE_RESOURCE_DATA": "graph_notification_include_resource_data",
+    "TEAMS_WEBHOOK_SECRET": "teams_webhook_secret",
+    "TEAMS_BOT_TOKEN": "teams_bot_token",
+    "TEAMS_REPLY_URL": "teams_reply_url",
 }
 
 
-def read_env_file() -> dict[str, str]:
-    if not ENV_FILE_PATH.exists():
-        return {}
-
-    values: dict[str, str] = {}
-    for line in ENV_FILE_PATH.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        values[key.strip()] = value.strip()
-    return values
-
-
 def is_setup_complete() -> bool:
-    values = read_env_file()
-    return all(values.get(key, "").strip() for key in REQUIRED_SETUP_KEYS)
-
-
-def get_form_defaults() -> dict[str, str]:
     settings = get_settings()
-    file_values = read_env_file()
-    defaults = {
+    return bool(settings.database_url.strip())
+
+
+def get_general_form_defaults() -> dict[str, str]:
+    settings = get_settings()
+    return {
+        "DATABASE_URL": settings.database_url,
         "APP_NAME": settings.app_name,
         "APP_ENV": settings.app_env,
         "LOG_LEVEL": settings.log_level,
-        "DATABASE_URL": settings.database_url,
-        "POSTGRES_DB": settings.postgres_db,
-        "POSTGRES_USER": settings.postgres_user,
-        "POSTGRES_PASSWORD": settings.postgres_password,
-        "POSTGRES_PORT": str(settings.postgres_port),
+        "PREFERRED_LANGUAGE": settings.preferred_language,
+        "TELEGRAM_BOT_TOKEN": settings.telegram_bot_token or "",
+        "TELEGRAM_CHAT_ID": settings.telegram_chat_id or "",
+        "TELEGRAM_APPROVAL_MODE": settings.telegram_approval_mode,
+        "TELEGRAM_POLL_INTERVAL_SECONDS": str(settings.telegram_poll_interval_seconds),
+        "PUBLIC_WEBHOOK_BASE_URL": settings.public_webhook_base_url or "",
+        "OPENAI_API_KEY": settings.openai_api_key or "",
+        "PANEL_LOGIN_USERNAME": settings.panel_login_username,
+        "PANEL_LOGIN_PASSWORD": settings.panel_login_password or "",
+        "PANEL_SESSION_SECRET": settings.panel_session_secret or "",
+    }
+
+
+def get_teams_form_defaults() -> dict[str, str]:
+    settings = get_settings()
+    return {
+        "TARGET_NAME": settings.target_name,
         "WATCHED_CHANNELS": ", ".join(settings.watched_channels),
         "RELEVANCE_KEYWORDS": ", ".join(settings.relevance_keywords),
-        "TARGET_NAME": settings.target_name,
-        "PREFERRED_LANGUAGE": settings.preferred_language,
         "MICROSOFT_TENANT_ID": settings.microsoft_tenant_id or "",
         "MICROSOFT_CLIENT_ID": settings.microsoft_client_id or "",
         "MICROSOFT_CLIENT_SECRET": settings.microsoft_client_secret or "",
@@ -102,26 +122,18 @@ def get_form_defaults() -> dict[str, str]:
         "TEAMS_WEBHOOK_SECRET": settings.teams_webhook_secret or "",
         "TEAMS_BOT_TOKEN": settings.teams_bot_token or "",
         "TEAMS_REPLY_URL": settings.teams_reply_url or "",
-        "TELEGRAM_BOT_TOKEN": settings.telegram_bot_token or "",
-        "TELEGRAM_CHAT_ID": settings.telegram_chat_id or "",
-        "TELEGRAM_APPROVAL_MODE": settings.telegram_approval_mode,
-        "TELEGRAM_POLL_INTERVAL_SECONDS": str(settings.telegram_poll_interval_seconds),
-        "PUBLIC_WEBHOOK_BASE_URL": settings.public_webhook_base_url or "",
-        "OPENAI_API_KEY": settings.openai_api_key or "",
-        "PANEL_LOGIN_USERNAME": settings.panel_login_username,
-        "PANEL_LOGIN_PASSWORD": settings.panel_login_password or "",
-        "PANEL_SESSION_SECRET": settings.panel_session_secret or "",
     }
-    defaults.update(file_values)
-    return defaults
 
 
-def save_setup(values: dict[str, Any]) -> None:
-    lines: list[str] = []
-    for key in SETUP_KEYS:
-        value = str(values.get(key, "")).strip()
-        lines.append(f"{key}={value}")
-    ENV_FILE_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+def save_general_settings(values: dict[str, Any]) -> None:
+    database_url = str(values.get("DATABASE_URL", "")).strip()
+    save_database_url(database_url)
+    write_runtime_settings(database_url, _map_form_values(values, GENERAL_FORM_KEYS, get_general_form_defaults()))
+
+
+def save_teams_settings(values: dict[str, Any]) -> None:
+    settings = get_settings()
+    write_runtime_settings(settings.database_url, _map_form_values(values, TEAMS_FORM_KEYS, get_teams_form_defaults()))
 
 
 def test_database_connection(database_url: str) -> tuple[bool, str]:
@@ -145,8 +157,21 @@ def mask_value(key: str, value: str) -> str:
     return value
 
 
-def get_config_summary() -> list[dict[str, str]]:
+def get_general_config_summary() -> list[dict[str, str]]:
     summary: list[dict[str, str]] = []
-    for key, value in get_form_defaults().items():
+    for key, value in get_general_form_defaults().items():
         summary.append({"key": key, "value": mask_value(key, value)})
     return summary
+
+
+def _map_form_values(values: dict[str, Any], allowed_keys: list[str], defaults: dict[str, str]) -> dict[str, Any]:
+    mapped: dict[str, Any] = {}
+    for key in allowed_keys:
+        if key not in _FIELD_MAP:
+            continue
+        raw_value = values.get(key, "")
+        if isinstance(raw_value, str) and not raw_value.strip() and defaults.get(key):
+            mapped[_FIELD_MAP[key]] = defaults[key]
+        else:
+            mapped[_FIELD_MAP[key]] = raw_value
+    return mapped

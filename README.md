@@ -1,100 +1,98 @@
-# ProjectAssistant Sprint 5
+ï»¿# ProjectAssistant
 
-Sprint 5, Telegram approval sonrasinda suggested reply'nin Microsoft Graph kullanilarak Teams'e geri gonderilmesini ekler.
+ProjectAssistant, Sinan icin Teams mesajlarini Microsoft Graph uzerinden dinleyen, AI triage yapan, Telegram uzerinden onay isteyen ve onaylanan yanitlari tekrar Teams'e gonderebilen moduler bir FastAPI uygulamasidir.
 
-## Bu sprintte ne var
+## Yeni panel akisi
 
-- Telegram approval akisi (`polling` veya `webhook`)
-- `approve` aksiyonunda Microsoft Graph uzerinden Teams delivery
-- Chat ve channel destination resolution
-- `sent_replies` tablosuna delivery sonucu kaydi
-- Duplicate approve click icin idempotent koruma
-- Delivery success/failure loglari
+- `/console`: sadece son gelen mesajlar ve son loglar
+- `/settings/general`: genel uygulama, panel auth ve Telegram ayarlari
+- `/settings/teams`: Microsoft Graph Teams/chat ayarlari, chatleri cekme, abonelik ve label duzenleme
 
-## Graph delivery akisi
+## Ayar saklama modeli
 
-1. Teams mesaji gelir ve `teams_messages` tablosuna yazilir.
-2. Relevant ise triage sonucu olusur.
-3. Telegram approval request gonderilir.
-4. Kullanici `approve` verirse sistem approval kaydini kontrol eder.
-5. Approval hala `pending` ise `approved` durumuna cekilir.
-6. Ilgili `triage_result` ve `teams_message` yuklenir.
-7. Mesaj metadata'sindan destination tipi belirlenir:
-   - `conversation_type=chat` ise `chat_id` ile chat'e yeni mesaj gonderilir
-   - `conversation_type=channel` ise `team_id`, `channel_id`, `parent_message_id` ile channel reply gonderilir
-8. Sonuc `sent_replies` tablosuna yazilir.
-9. Ayný approval tekrar gelirse ve delivery kaydi varsa ikinci kez gonderim yapilmaz.
+Artik environment tarafinda yalnizca `DATABASE_URL` tutulur.
+Diger tum ayarlar veritabanindaki `app_settings` tablosunda key/value olarak saklanir.
 
-## Beklenen Graph konfigurasyonu
+`.env.example`:
 
 ```env
-MICROSOFT_TENANT_ID=your-tenant-id
-MICROSOFT_CLIENT_ID=your-client-id
-MICROSOFT_CLIENT_SECRET=your-client-secret
-MICROSOFT_GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
-```
-
-## Beklenen Graph izinleri
-
-Bu sprintte app-only client credentials modeli kullanilir. Pratikte Teams mesaj gonderimi icin Microsoft Graph tarafinda uygun uygulama izinlerine ihtiyacin olacak. Exact izin seti tenant politikasina ve destination tipine gore degisebilir.
-
-Minimum beklenti:
-
-- Teams message read icin Sprint 2'de kullandigin uygun Graph read izinleri
-- Teams message send icin uygun Graph permission onayi
-
-Not: Graph'in chat vs channel gonderim davranisi ve izin modeli her tenant'ta birebir ayni olmayabilir. Bu yuzden README ve adapter katmani pragmatik tutuldu; delegated/user-context send daha sonra temiz sekilde eklenebilir.
-
-## Destination mapping
-
-`teams_messages` artik delivery context icin su alanlari da tasir:
-
-- `conversation_type`: `chat` veya `channel`
-- `team_id`
-- `channel_id`
-- `chat_id`
-- `parent_message_id`
-- `thread_id`
-
-Kullanim sekli:
-
-- Chat mesaji ise `send_chat_message(chat_id, text)`
-- Channel mesaji ise `reply_to_channel_message(team_id, channel_id, parent_message_id, text)`
-
-## Known limitations
-
-- Chat delivery, pragmatik olarak ayni chat'e yeni follow-up mesaj gonderir; true threaded reply modeli hedeflenmedi.
-- Channel delivery icin Microsoft Graph reply endpoint kullanilir; ingestion sirasinda `team_id`, `channel_id`, `parent_message_id` saklanmis olmasi gerekir.
-- Eger eski kayitlarda delivery context yoksa delivery `failed` olarak kaydedilir.
-- Delivery basarisiz olduktan sonra duplicate approve retry otomatik re-send yapmaz; mevcut failed kayit korunur.
-
-## Local test with mocks
-
-Gercek Graph cagrisi olmadan test etmek icin testlerde `GraphClient.reply_to_channel_message` veya `GraphClient.send_chat_message` monkeypatch ediliyor.
-
-Ornek yaklasim:
-
-```python
-monkeypatch.setattr(
-    "app.adapters.graph_client.GraphClient.reply_to_channel_message",
-    lambda self, **kwargs: GraphSendResult(success=True, message_id="graph-reply-1", destination_type="channel_reply"),
-)
+DATABASE_URL=postgresql+psycopg://projectassistant:projectassistant@db:5432/projectassistant
 ```
 
 ## Migration
 
-Sprint 5 delivery context icin `teams_messages` tablosuna su kolonlari ekler:
+Yeni migration:
+- `20260311_0004_app_settings.py`
 
-- `conversation_type`
-- `team_id`
-- `chat_id`
-- `parent_message_id`
-
-Migration uygulama:
+Uygulamak icin:
 
 ```bash
 alembic upgrade head
 ```
+
+## Render notu
+
+Render environment variables icinde en az su alan olmalidir:
+
+```env
+DATABASE_URL=postgresql+psycopg://...
+```
+
+Uygulama ayaga kalkinca diger ayarlari panelden kaydedebilirsin.
+
+## Teams ayarlari
+
+`/settings/teams` ekraninda:
+- Microsoft Graph tenant/client/secret bilgilerini gir
+- `MICROSOFT_USER_ID` alanina kendi Entra kullanici object id degerini yaz
+- `Chatleri Cek` ile kullanici chatlerini manuel olarak getir
+- Teams web chat linki veya `19:...@thread.v2` id ile manuel chat ekleyebilirsin
+- `Secili Chatlere Abone Ol` ile Graph subscription olusturulur
+- mevcut aboneliklerin label'larini ayni ekranda degistirebilirsin
+
+## Genel ayarlar
+
+`/settings/general` ekraninda:
+- panel login username/password/session secret
+- Telegram bot token ve chat id
+- Telegram approval mode (`polling` / `webhook`)
+- `PUBLIC_WEBHOOK_BASE_URL`
+- OpenAI API key
+
+Ayni ekranda Telegram webhook icin iki tus vardir:
+- `Webhooku Aktif Et`
+- `Webhooku Kapat`
+
+Bu, polling ve webhook cakismasini yonetmek icin eklendi.
+
+## Graph webhook
+
+Webhook endpoint:
+
+```text
+POST /webhooks/graph
+```
+
+Validation request ornegi:
+
+```bash
+curl -X POST "https://your-host/webhooks/graph?validationToken=abc123"
+```
+
+Beklenen cevap:
+
+```text
+abc123
+```
+
+## Telegram approval akisi
+
+1. Relevant Teams/chat mesaji gelir
+2. mesaj normalize edilip `teams_messages` tablosuna yazilir
+3. triage olusur
+4. Telegram approval request gonderilir
+5. approve verilirse delivery Microsoft Graph ile Teams'e gonderilir
+6. sonuc `sent_replies` tablosuna yazilir
 
 ## Local calistirma
 
@@ -112,63 +110,9 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-## Ornek approve akisi
+## Known limitations
 
-1. Telegram callback gelir:
-
-```text
-approve:12
-```
-
-2. Sistem `approval_requests.triage_result_id = 12` kaydini bulur.
-3. Approval `pending` ise `approved` yapar.
-4. `triage_results.message_id` uzerinden orijinal Teams mesaji yuklenir.
-5. Mesaj `conversation_type=channel`, `team_id=team-42`, `channel_id=channel-99`, `parent_message_id=root-77` ise:
-
-```text
-POST /teams/team-42/channels/channel-99/messages/root-77/replies
-```
-
-6. Basarili olursa:
-   - `sent_replies.delivery_status = sent`
-   - callback cevabi harmless sekilde `sent` doner
-7. Ayni approve tekrar gelirse ikinci kez gonderim yapilmaz.
-
-## Notlar
-
-- Teams bot SDK veya Bot Framework reply modeli kullanilmadi.
-- Delivery yalnizca Microsoft Graph uzerinden yapilir.
-- Jira, code analysis ve yeni kanal ekleme kapsam disidir.
-
-## Panelden kullanici chat aboneligi olusturma
-
-`/console` ekraninda artik `Kullanici Chat Abonelikleri` bolumu bulunur.
-
-Bu bolum:
-- Microsoft Graph uzerinden erisilebilen takimlari, kanallari, birebir chatleri ve grup chatlerini listeler
-- bir veya birden fazla hedef secip abonelik olusturur
-- mevcut Graph subscription kayitlarini ekranda gosterir
-
-Notlar:
-- listeleme icin Graph tarafinda uygun uygulama izinleri ve admin consent gerekir
-- takim listesi icin pratikte `Group.Read.All` uygulama izni gerekir
-- chat listesi icin `Chat.ReadBasic.All` ve chat uye etiketleri icin `ChatMember.Read.All` benzeri uygulama izinleri gerekebilir
-- olusturulan abonelikler test odakli olarak kisa sureli tutulur ve sure dolunca yenilenmeleri gerekir
-- uygulama abonelikleri su URL ile olusturur: `https://<your-host>/webhooks/graph`
-
-## Panel security
-
-Public deploylerde /setup ve /console ekranlari statik login ile korunur.
-
-Gerekli environment variable'lar:
-
-`env
-PANEL_LOGIN_USERNAME=sinan
-PANEL_LOGIN_PASSWORD=strong-password
-PANEL_SESSION_SECRET=long-random-session-secret
-` 
-
-Bu alanlar tanimli degilse panel ekranlari acilmaz; webhook endpoint'leri calismaya devam eder.
-
-
-
+- `GET /users/{id}/chats` Graph tarafinda tenant'a gore degisebilir; bu nedenle Teams ayarlarinda manuel chat link/id fallback'i vardir.
+- Chat delivery pragmatik olarak ayni chat'e yeni follow-up message gonderir.
+- Channel delivery Microsoft Graph reply endpoint uzerinden calisir.
+- Abonelik sureleri dolarsa yenilenmeleri gerekir.

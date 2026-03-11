@@ -1,0 +1,71 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Ana Sayfa | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card console-hero">
+    <div>
+        <p class="eyebrow">Ana Sayfa</p>
+        <h2>Son gelen mesajlar ve son loglar</h2>
+        <p class="hero-copy">
+            Bu ekranda sadece son Teams mesajlarini ve sistemin son loglarini gorursun. Ayarlar ve abonelikler kendi ekranlarinda yonetilir.
+        </p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill {{ 'ok' if db_ok else 'warn' }}">{{ 'DB hazir' if db_ok else 'DB baglantisi sorunlu' }}</div>
+        <div class="flash info">{{ db_message }}</div>
+    </div>
+</section>
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Son Gelen Mesajlar</h3>
+        {% if messages_error %}
+        <div class="flash warn">{{ messages_error }}</div>
+        {% endif %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Gonderen</th>
+                        <th>Kaynak</th>
+                        <th>Relevant</th>
+                        <th>Triage</th>
+                        <th>Approval</th>
+                        <th>Mesaj</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in recent_messages %}
+                    <tr>
+                        <td>{{ message.sender_name or '-' }}</td>
+                        <td>{{ message.channel_name or message.channel_id or chat_labels.get(message.chat_id, message.chat_id) or '-' }}</td>
+                        <td>{{ 'Evet' if message.is_relevant else 'Hayir' }}</td>
+                        <td>{% if message.triage_result %}{{ message.triage_result.category }} / {{ message.triage_result.priority }}{% else %}-{% endif %}</td>
+                        <td>{% if message.triage_result and message.triage_result.approval_request %}{{ message.triage_result.approval_request.status }}{% else %}-{% endif %}</td>
+                        <td>{{ message.message_text }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6">Henuz mesaj kaydi yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Son Loglar</h3>
+        <div class="scroll-list code-list">
+            {% for log in recent_logs %}
+            <article class="list-item log-item">
+                <strong>[{{ log.level }}] {{ log.message }}</strong>
+                <span>{{ log.timestamp }}</span>
+                {% if log.extra %}<pre>{{ log.extra }}</pre>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Log bulunamadi.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 
 async def _noop_refresh() -> None:
@@ -33,25 +33,16 @@ def test_root_redirects_to_login_when_not_authenticated(client, monkeypatch) -> 
     assert response.headers["location"].startswith("/login")
 
 
-def test_login_page_renders(client, monkeypatch) -> None:
+def test_general_settings_page_requires_login(client, monkeypatch) -> None:
     _configure_panel_auth(monkeypatch)
 
-    response = client.get("/login")
-
-    assert response.status_code == 200
-    assert "Panel Girisi" in response.text
-
-
-def test_setup_page_requires_login(client, monkeypatch) -> None:
-    _configure_panel_auth(monkeypatch)
-
-    response = client.get("/setup", follow_redirects=False)
+    response = client.get("/settings/general", follow_redirects=False)
 
     assert response.status_code == 302
     assert response.headers["location"].startswith("/login")
 
 
-def test_setup_post_writes_env_and_shows_success(client, monkeypatch) -> None:
+def test_general_settings_post_saves_and_shows_success(client, monkeypatch) -> None:
     _configure_panel_auth(monkeypatch)
     monkeypatch.setattr(
         "app.api.control_panel.test_database_connection",
@@ -65,32 +56,35 @@ def test_setup_post_writes_env_and_shows_success(client, monkeypatch) -> None:
     _login(client)
 
     response = client.post(
-        "/setup",
+        "/settings/general",
         data={
+            "database_url": "postgresql+psycopg://demo:demo@db:5432/demo",
             "app_name": "ProjectAssistant",
             "app_env": "local",
             "log_level": "INFO",
-            "database_url": "postgresql+psycopg://demo:demo@db:5432/demo",
-            "postgres_db": "demo",
-            "postgres_user": "demo",
-            "postgres_password": "secret",
-            "postgres_port": "5432",
-            "watched_channels": "engineering-alerts,prod-support",
-            "relevance_keywords": "bug,issue",
-            "target_name": "Sinan",
             "preferred_language": "tr",
-            "teams_webhook_secret": "",
-            "teams_bot_token": "",
-            "teams_reply_url": "",
             "telegram_bot_token": "bot-token",
             "telegram_chat_id": "123456789",
-            "telegram_approval_mode": "polling",
+            "telegram_approval_mode": "webhook",
             "telegram_poll_interval_seconds": "5",
             "public_webhook_base_url": "https://example.test",
             "openai_api_key": "",
+            "panel_login_username": "sinan",
+            "panel_login_password": "super-secret",
+            "panel_session_secret": "session-secret-123",
         },
     )
 
     assert response.status_code == 200
-    assert "Ayarlar kaydedildi." in response.text
+    assert "Genel ayarlar kaydedildi." in response.text
     assert "Database connection successful." in response.text
+
+
+def test_dashboard_renders_after_login(client, monkeypatch) -> None:
+    _configure_panel_auth(monkeypatch)
+    _login(client)
+
+    response = client.get("/console")
+
+    assert response.status_code == 200
+    assert "Son gelen mesajlar ve son loglar" in response.text
