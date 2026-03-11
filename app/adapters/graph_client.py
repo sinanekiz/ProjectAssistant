@@ -135,9 +135,9 @@ class GraphClient:
         channels.sort(key=lambda item: (item.get("displayName") or "").lower())
         return channels
 
-    def list_chats(self) -> list[dict[str, Any]] | None:
+    def list_user_chats(self, *, user_id: str) -> list[dict[str, Any]] | None:
         payload = self._get_graph_json(
-            "chats",
+            f"users/{user_id}/chats",
             params={"$select": "id,topic,chatType,webUrl", "$top": "200"},
         )
         if payload is None:

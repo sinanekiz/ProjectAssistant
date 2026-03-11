@@ -131,6 +131,7 @@ async def save_setup_page(
     microsoft_tenant_id: str = Form(""),
     microsoft_client_id: str = Form(""),
     microsoft_client_secret: str = Form(""),
+    microsoft_user_id: str = Form(""),
     microsoft_graph_base_url: str = Form("https://graph.microsoft.com/v1.0"),
     graph_webhook_client_state: str = Form(""),
     graph_subscription_resource: str = Form(""),
@@ -165,6 +166,7 @@ async def save_setup_page(
         "MICROSOFT_TENANT_ID": microsoft_tenant_id,
         "MICROSOFT_CLIENT_ID": microsoft_client_id,
         "MICROSOFT_CLIENT_SECRET": microsoft_client_secret,
+        "MICROSOFT_USER_ID": microsoft_user_id,
         "MICROSOFT_GRAPH_BASE_URL": microsoft_graph_base_url,
         "GRAPH_WEBHOOK_CLIENT_STATE": graph_webhook_client_state,
         "GRAPH_SUBSCRIPTION_RESOURCE": graph_subscription_resource,
@@ -396,5 +398,9 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
+
+
+
 
 

@@ -140,9 +140,9 @@ POST /teams/team-42/channels/channel-99/messages/root-77/replies
 - Delivery yalnizca Microsoft Graph uzerinden yapilir.
 - Jira, code analysis ve yeni kanal ekleme kapsam disidir.
 
-## Panelden kanal ve chat aboneligi olusturma
+## Panelden kullanici chat aboneligi olusturma
 
-`/console` ekraninda artik `Teams Kanal ve Chat Abonelikleri` bolumu bulunur.
+`/console` ekraninda artik `Kullanici Chat Abonelikleri` bolumu bulunur.
 
 Bu bolum:
 - Microsoft Graph uzerinden erisilebilen takimlari, kanallari, birebir chatleri ve grup chatlerini listeler
@@ -169,5 +169,6 @@ PANEL_SESSION_SECRET=long-random-session-secret
 ` 
 
 Bu alanlar tanimli degilse panel ekranlari acilmaz; webhook endpoint'leri calismaya devam eder.
+
 
 

@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Kurulum | ProjectAssistant{% endblock %}
 
@@ -8,7 +8,7 @@
         <p class="eyebrow">Ilk Kurulum</p>
         <h2>Uygulamayi kendi bilgisayarinda ayaga kaldir</h2>
         <p class="hero-copy">
-            Bu ekran veritabani baglantisi, Microsoft Graph webhook ayarlari, izlenen kanallar ve sonraki sprintlerde kullanilan entegrasyon tokenlarini tek yerden toplar.
+            Bu ekran veritabani baglantisi, Microsoft Graph webhook ayarlari, kullanici chat listeleme kimlikleri ve sonraki sprintlerde kullanilan entegrasyon tokenlarini tek yerden toplar.
             Ayarlari kaydettikten sonra panelde son islemleri ve kayda dusen Teams mesajlarini gorebilirsin.
         </p>
     </div>
@@ -50,6 +50,7 @@
         <label>Microsoft Tenant ID<input name="microsoft_tenant_id" value="{{ values.MICROSOFT_TENANT_ID }}"></label>
         <label>Microsoft Client ID<input name="microsoft_client_id" value="{{ values.MICROSOFT_CLIENT_ID }}"></label>
         <label>Microsoft Client Secret<input type="password" name="microsoft_client_secret" value="{{ values.MICROSOFT_CLIENT_SECRET }}"></label>
+        <label>Microsoft User ID veya UPN<input name="microsoft_user_id" value="{{ values.MICROSOFT_USER_ID }}"></label>
         <label>Microsoft Graph Base URL<input name="microsoft_graph_base_url" value="{{ values.MICROSOFT_GRAPH_BASE_URL }}"></label>
         <label>Graph Webhook Client State<input name="graph_webhook_client_state" value="{{ values.GRAPH_WEBHOOK_CLIENT_STATE }}"></label>
         <label>Graph Subscription Resource<input name="graph_subscription_resource" value="{{ values.GRAPH_SUBSCRIPTION_RESOURCE }}"></label>
@@ -81,9 +82,9 @@
 
     <section class="panel-card actions-card">
         <h3>Kurulumu Kaydet</h3>
-        <p>Graph webhook endpoint'i `/webhooks/graph` adresindedir. Microsoft Graph validation isteklerinde `validationToken` query parametresi ham metin olarak geri doner.</p>
+        <p>Graph webhook endpoint'i `/webhooks/graph` adresindedir. Kullanici chat paneli `MICROSOFT_USER_ID` ile belirtilen hesabin birebir ve grup chatlerini listeler.</p>
         <div class="button-row">
-            <button type="submit" class="primary-btn">Ayarları Kaydet</button>
+            <button type="submit" class="primary-btn">Ayarlar� Kaydet</button>
             <a class="secondary-btn" href="/console">Panele Git</a>
         </div>
     </section>

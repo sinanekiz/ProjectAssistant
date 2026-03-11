@@ -10,21 +10,11 @@ from app.services.graph_subscriptions import (
 
 class StubGraphClient:
     def __init__(self) -> None:
-        self.created_channels: list[tuple[str, str, str, str | None]] = []
         self.created_chats: list[tuple[str, str, str | None]] = []
 
-    def list_teams(self):
-        return [
-            {"id": "team-1", "displayName": "Engineering"},
-            {"id": "team-2", "displayName": "Support"},
-        ]
-
-    def list_channels(self, *, team_id: str):
-        if team_id == "team-1":
-            return [{"id": "channel-1", "displayName": "Alerts", "membershipType": "standard"}]
-        return [{"id": "channel-2", "displayName": "Ops", "membershipType": "private"}]
-
-    def list_chats(self):
+    def list_user_chats(self, *, user_id: str):
+        if user_id != "user-123":
+            return []
         return [
             {"id": "chat-1", "chatType": "oneOnOne", "topic": None},
             {"id": "chat-2", "chatType": "group", "topic": "Ops War Room"},
@@ -46,19 +36,10 @@ class StubGraphClient:
         return [
             {
                 "id": "sub-1",
-                "resource": "/teams/team-1/channels/channel-1/messages",
-                "expirationDateTime": "2026-03-11T12:00:00Z",
-            },
-            {
-                "id": "sub-2",
                 "resource": "/chats/chat-1/messages",
                 "expirationDateTime": "2026-03-11T12:30:00Z",
             },
         ]
-
-    def create_channel_message_subscription(self, *, team_id: str, channel_id: str, notification_url: str, client_state: str | None = None, expiration_minutes: int = 55):
-        self.created_channels.append((team_id, channel_id, notification_url, client_state))
-        return {"id": f"sub-channel-{len(self.created_channels)}"}
 
     def create_chat_message_subscription(self, *, chat_id: str, notification_url: str, client_state: str | None = None, expiration_minutes: int = 55):
         self.created_chats.append((chat_id, notification_url, client_state))
@@ -66,10 +47,7 @@ class StubGraphClient:
 
 
 class FailingGraphClient(StubGraphClient):
-    def list_teams(self):
-        return None
-
-    def list_chats(self):
+    def list_user_chats(self, *, user_id: str):
         return None
 
 
@@ -80,25 +58,25 @@ def test_parse_target_value() -> None:
 
 
 def test_normalize_resource() -> None:
-    assert normalize_resource("/Teams/TEAM-1/Channels/CHANNEL-1/messages") == "teams/team-1/channels/channel-1/messages"
+    assert normalize_resource("/Chats/CHAT-1/messages") == "chats/chat-1/messages"
 
 
-def test_load_graph_console_data_builds_target_and_subscription_lists(monkeypatch) -> None:
+def test_load_graph_console_data_builds_chat_and_subscription_lists(monkeypatch) -> None:
     stub_client = StubGraphClient()
     monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
     monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
     monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("MICROSOFT_USER_ID", "user-123")
     monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: stub_client)
 
     targets, subscriptions, errors = load_graph_console_data()
 
     assert not errors
-    assert len(targets) == 4
-    assert any(target.label == "Kanal / Engineering / Alerts (standard)" for target in targets)
+    assert len(targets) == 2
     assert any(target.label == "Kisi / Sinan - Ayse" for target in targets)
-    assert len(subscriptions) == 2
-    assert any(subscription.target_type == "channel" for subscription in subscriptions)
-    assert any(subscription.target_type == "chat" for subscription in subscriptions)
+    assert any(target.label == "Grup / Ops War Room" for target in targets)
+    assert len(subscriptions) == 1
+    assert subscriptions[0].target_type == "chat"
 
 
 def test_subscribe_to_targets_skips_existing_and_creates_new(monkeypatch) -> None:
@@ -108,26 +86,36 @@ def test_subscribe_to_targets_skips_existing_and_creates_new(monkeypatch) -> Non
     monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: stub_client)
 
     result = subscribe_to_targets([
-        "channel||team-1::channel-1||Kanal / Engineering / Alerts (standard)",
-        "channel||team-2::channel-2||Kanal / Support / Ops (private)",
         "chat||chat-1||Kisi / Sinan - Ayse",
         "chat||chat-2||Grup / Ops War Room",
     ])
 
-    assert "2 hedef icin abonelik olusturuldu." in result.notice
-    assert "2 hedef zaten aboneli listesinde oldugu icin atlandi." in result.notice
-    assert len(stub_client.created_channels) == 1
-    assert stub_client.created_channels[0][0] == "team-2"
+    assert "1 chat icin abonelik olusturuldu." in result.notice
+    assert "1 chat zaten aboneli listesinde oldugu icin atlandi." in result.notice
     assert len(stub_client.created_chats) == 1
     assert stub_client.created_chats[0][0] == "chat-2"
     assert stub_client.created_chats[0][1] == "https://projectassistant.onrender.com/webhooks/graph"
     assert stub_client.created_chats[0][2] == "state-1"
 
 
+def test_load_graph_console_data_requires_user_id(monkeypatch) -> None:
+    monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
+    monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
+    monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
+    monkeypatch.delenv("MICROSOFT_USER_ID", raising=False)
+
+    targets, subscriptions, errors = load_graph_console_data()
+
+    assert targets == []
+    assert subscriptions == []
+    assert errors
+
+
 def test_load_graph_console_data_reports_missing_permissions(monkeypatch) -> None:
     monkeypatch.setenv("MICROSOFT_TENANT_ID", "tenant")
     monkeypatch.setenv("MICROSOFT_CLIENT_ID", "client")
     monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("MICROSOFT_USER_ID", "user-123")
     monkeypatch.setattr("app.services.graph_subscriptions.GraphClient.from_settings", lambda: FailingGraphClient())
 
     targets, subscriptions, errors = load_graph_console_data()

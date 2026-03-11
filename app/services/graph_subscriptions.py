@@ -6,8 +6,8 @@ import re
 from app.adapters.graph_client import GraphClient
 from app.config import get_settings
 
-_CHANNEL_RESOURCE_RE = re.compile(r"^/?teams/(?P<team_id>[^/]+)/channels/(?P<channel_id>[^/]+)/messages$", re.IGNORECASE)
 _CHAT_RESOURCE_RE = re.compile(r"^/?chats/(?P<chat_id>[^/]+)/messages$", re.IGNORECASE)
+_CHANNEL_RESOURCE_RE = re.compile(r"^/?teams/(?P<team_id>[^/]+)/channels/(?P<channel_id>[^/]+)/messages$", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -16,10 +16,6 @@ class GraphSubscriptionTarget:
     target_id: str
     label: str
     value: str
-    team_id: str | None = None
-    team_name: str | None = None
-    channel_id: str | None = None
-    channel_name: str | None = None
     chat_id: str | None = None
     chat_type: str | None = None
 
@@ -45,9 +41,11 @@ def load_graph_console_data() -> tuple[list[GraphSubscriptionTarget], list[Graph
     errors: list[str] = []
     if not settings.microsoft_tenant_id or not settings.microsoft_client_id or not settings.microsoft_client_secret:
         return [], [], ["Microsoft Graph kimlik bilgileri eksik. Setup ekranindan tenant, client ve secret alanlarini doldur."]
+    if not settings.microsoft_user_id:
+        return [], [], ["MICROSOFT_USER_ID ayari eksik. Kendi kullanici object id veya UPN degerini setup ekranina gir."]
 
     client = GraphClient.from_settings()
-    targets = _load_available_targets(client, errors)
+    targets = _load_user_chats(client, settings.microsoft_user_id, errors)
     subscriptions = _load_graph_subscriptions(client, targets, errors)
     return targets, subscriptions, errors
 
@@ -55,7 +53,7 @@ def load_graph_console_data() -> tuple[list[GraphSubscriptionTarget], list[Graph
 def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSummary:
     settings = get_settings()
     if not target_values:
-        return GraphSubscriptionActionSummary(notice="Abone olmak icin en az bir hedef secmelisin.", errors=[])
+        return GraphSubscriptionActionSummary(notice="Abone olmak icin en az bir chat secmelisin.", errors=[])
     if not settings.public_webhook_base_url:
         return GraphSubscriptionActionSummary(notice="", errors=["PUBLIC_WEBHOOK_BASE_URL ayari eksik. Render URL'ini setup veya environment alanina gir."])
 
@@ -75,35 +73,20 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
             continue
 
         target_type, target_id, label = parsed
-        if target_type == "channel":
-            if "::" not in target_id:
-                errors.append(f"Kanal hedefi bozuk: {label}")
-                continue
-            team_id, channel_id = target_id.split("::", 1)
-            resource = normalize_resource(f"/teams/{team_id}/channels/{channel_id}/messages")
-            if resource in existing_resources:
-                skipped_labels.append(label)
-                continue
-            created = client.create_channel_message_subscription(
-                team_id=team_id,
-                channel_id=channel_id,
-                notification_url=notification_url,
-                client_state=settings.graph_webhook_client_state,
-            )
-        elif target_type == "chat":
-            resource = normalize_resource(f"/chats/{target_id}/messages")
-            if resource in existing_resources:
-                skipped_labels.append(label)
-                continue
-            created = client.create_chat_message_subscription(
-                chat_id=target_id,
-                notification_url=notification_url,
-                client_state=settings.graph_webhook_client_state,
-            )
-        else:
+        if target_type != "chat":
             errors.append(f"Desteklenmeyen hedef tipi: {target_type}")
             continue
 
+        resource = normalize_resource(f"/chats/{target_id}/messages")
+        if resource in existing_resources:
+            skipped_labels.append(label)
+            continue
+
+        created = client.create_chat_message_subscription(
+            chat_id=target_id,
+            notification_url=notification_url,
+            client_state=settings.graph_webhook_client_state,
+        )
         if created is None:
             errors.append(f"Abonelik olusturulamadi: {label}")
             continue
@@ -113,9 +96,9 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
 
     parts: list[str] = []
     if created_labels:
-        parts.append(f"{len(created_labels)} hedef icin abonelik olusturuldu.")
+        parts.append(f"{len(created_labels)} chat icin abonelik olusturuldu.")
     if skipped_labels:
-        parts.append(f"{len(skipped_labels)} hedef zaten aboneli listesinde oldugu icin atlandi.")
+        parts.append(f"{len(skipped_labels)} chat zaten aboneli listesinde oldugu icin atlandi.")
     if not parts and errors:
         parts.append("Hic abonelik olusturulamadi.")
     if not parts:
@@ -135,55 +118,10 @@ def normalize_resource(resource: str) -> str:
     return resource.strip().lstrip("/").lower()
 
 
-def _load_available_targets(client: GraphClient, errors: list[str]) -> list[GraphSubscriptionTarget]:
-    return _load_available_channels(client, errors) + _load_available_chats(client, errors)
-
-
-def _load_available_channels(client: GraphClient, errors: list[str]) -> list[GraphSubscriptionTarget]:
-    teams = client.list_teams()
-    if teams is None:
-        errors.append("Teams listesi Graph'tan alinamadi. Uygulama izinlerini ve admin consent ayarlarini kontrol et.")
-        return []
-
-    channels: list[GraphSubscriptionTarget] = []
-    for team in teams:
-        team_id = str(team.get("id") or "")
-        if not team_id:
-            continue
-        team_name = str(team.get("displayName") or team_id)
-        team_channels = client.list_channels(team_id=team_id)
-        if team_channels is None:
-            errors.append(f"{team_name} takiminin kanallari alinamadi.")
-            continue
-        for channel in team_channels:
-            channel_id = str(channel.get("id") or "")
-            if not channel_id:
-                continue
-            channel_name = str(channel.get("displayName") or channel_id)
-            membership_type = channel.get("membershipType")
-            label = f"Kanal / {team_name} / {channel_name}"
-            if membership_type:
-                label = f"{label} ({membership_type})"
-            channels.append(
-                GraphSubscriptionTarget(
-                    target_type="channel",
-                    target_id=f"{team_id}::{channel_id}",
-                    label=label,
-                    value=f"channel||{team_id}::{channel_id}||{label}",
-                    team_id=team_id,
-                    team_name=team_name,
-                    channel_id=channel_id,
-                    channel_name=channel_name,
-                )
-            )
-    channels.sort(key=lambda item: item.label.lower())
-    return channels
-
-
-def _load_available_chats(client: GraphClient, errors: list[str]) -> list[GraphSubscriptionTarget]:
-    chats = client.list_chats()
+def _load_user_chats(client: GraphClient, user_id: str, errors: list[str]) -> list[GraphSubscriptionTarget]:
+    chats = client.list_user_chats(user_id=user_id)
     if chats is None:
-        errors.append("Chat listesi Graph'tan alinamadi. Chat.ReadBasic.All ve admin consent ayarlarini kontrol et.")
+        errors.append("Kullanici chat listesi Graph'tan alinamadi. MICROSOFT_USER_ID, Chat.ReadBasic.All ve admin consent ayarlarini kontrol et.")
         return []
 
     targets: list[GraphSubscriptionTarget] = []
@@ -248,11 +186,6 @@ def _load_graph_subscriptions(
         errors.append("Mevcut Graph abonelikleri alinamadi.")
         return []
 
-    channel_labels = {
-        (target.team_id, target.channel_id): target.label
-        for target in targets
-        if target.target_type == "channel"
-    }
     chat_labels = {
         target.chat_id: target.label
         for target in targets
@@ -266,20 +199,18 @@ def _load_graph_subscriptions(
         target_type = "unknown"
         target_id = None
 
-        channel_match = _CHANNEL_RESOURCE_RE.match(resource)
-        if channel_match is not None:
-            team_id = channel_match.group("team_id")
-            channel_id = channel_match.group("channel_id")
-            label = channel_labels.get((team_id, channel_id), f"Kanal / {team_id} / {channel_id}")
-            target_type = "channel"
-            target_id = f"{team_id}:{channel_id}"
+        chat_match = _CHAT_RESOURCE_RE.match(resource)
+        if chat_match is not None:
+            chat_id = chat_match.group("chat_id")
+            label = chat_labels.get(chat_id, f"Chat / {chat_id}")
+            target_type = "chat"
+            target_id = chat_id
         else:
-            chat_match = _CHAT_RESOURCE_RE.match(resource)
-            if chat_match is not None:
-                chat_id = chat_match.group("chat_id")
-                label = chat_labels.get(chat_id, f"Chat / {chat_id}")
-                target_type = "chat"
-                target_id = chat_id
+            channel_match = _CHANNEL_RESOURCE_RE.match(resource)
+            if channel_match is not None:
+                target_type = "channel"
+                target_id = f"{channel_match.group('team_id')}:{channel_match.group('channel_id')}"
+                label = f"Kanal / {channel_match.group('team_id')} / {channel_match.group('channel_id')}"
 
         subscriptions.append(
             GraphSubscriptionView(

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,7 @@ SETUP_KEYS = [
     "MICROSOFT_TENANT_ID",
     "MICROSOFT_CLIENT_ID",
     "MICROSOFT_CLIENT_SECRET",
+    "MICROSOFT_USER_ID",
     "MICROSOFT_GRAPH_BASE_URL",
     "GRAPH_WEBHOOK_CLIENT_STATE",
     "GRAPH_SUBSCRIPTION_RESOURCE",
@@ -88,6 +89,7 @@ def get_form_defaults() -> dict[str, str]:
         "MICROSOFT_TENANT_ID": settings.microsoft_tenant_id or "",
         "MICROSOFT_CLIENT_ID": settings.microsoft_client_id or "",
         "MICROSOFT_CLIENT_SECRET": settings.microsoft_client_secret or "",
+        "MICROSOFT_USER_ID": settings.microsoft_user_id or "",
         "MICROSOFT_GRAPH_BASE_URL": settings.microsoft_graph_base_url,
         "GRAPH_WEBHOOK_CLIENT_STATE": settings.graph_webhook_client_state or "",
         "GRAPH_SUBSCRIPTION_RESOURCE": settings.graph_subscription_resource or "",
