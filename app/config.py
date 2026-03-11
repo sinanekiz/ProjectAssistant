@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Any, Literal
@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     microsoft_tenant_id: str | None = None
     microsoft_client_id: str | None = None
     microsoft_client_secret: str | None = None
+    microsoft_user_id: str | None = None
     microsoft_graph_base_url: str = "https://graph.microsoft.com/v1.0"
     graph_webhook_client_state: str | None = None
     graph_subscription_resource: str | None = None
@@ -90,4 +91,5 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
 
