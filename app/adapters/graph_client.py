@@ -235,7 +235,7 @@ class GraphClient:
     def list_my_chats(self) -> list[dict[str, Any]] | None:
         payload = self._get_graph_json(
             "chats",
-            params={"$select": "id,topic,chatType", "$top": "200"},
+            params={"$select": "id,topic,chatType", "$top": "50"},
             access_mode="delegated",
         )
         if payload is None:
@@ -504,6 +504,7 @@ class GraphClient:
                 "content": f"<div>{escaped}</div>",
             }
         }
+
 
 
 
