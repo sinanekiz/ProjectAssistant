@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -14,8 +14,13 @@
                 <h1 class="brand-title">Sinan icin kurulum ve operasyon paneli</h1>
             </div>
             <nav class="topnav">
+                {% if is_authenticated %}
                 <a href="/setup">Kurulum</a>
                 <a href="/console">Panel</a>
+                <a href="/logout">Cikis</a>
+                {% else %}
+                <a href="/login">Giris</a>
+                {% endif %}
                 <a href="/health" target="_blank" rel="noreferrer">Health</a>
             </nav>
         </header>

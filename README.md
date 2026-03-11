@@ -154,3 +154,18 @@ Notlar:
 - takim listesi icin pratikte `Group.Read.All` benzeri bir uygulama izni gerekebilir
 - olusturulan abonelikler test odakli olarak kisa sureli tutulur ve sure dolunca yenilenmeleri gerekir
 - uygulama abonelikleri su URL ile olusturur: `https://<your-host>/webhooks/graph`
+
+## Panel security
+
+Public deploylerde /setup ve /console ekranlari statik login ile korunur.
+
+Gerekli environment variable'lar:
+
+`env
+PANEL_LOGIN_USERNAME=sinan
+PANEL_LOGIN_PASSWORD=strong-password
+PANEL_SESSION_SECRET=long-random-session-secret
+` 
+
+Bu alanlar tanimli degilse panel ekranlari acilmaz; webhook endpoint'leri calismaya devam eder.
+

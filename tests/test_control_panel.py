@@ -1,25 +1,58 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 
 async def _noop_refresh() -> None:
     return None
 
 
-def test_root_redirects_to_setup_when_env_missing(client) -> None:
+def _configure_panel_auth(monkeypatch) -> None:
+    monkeypatch.setenv("PANEL_LOGIN_USERNAME", "sinan")
+    monkeypatch.setenv("PANEL_LOGIN_PASSWORD", "super-secret")
+    monkeypatch.setenv("PANEL_SESSION_SECRET", "session-secret-123")
+
+
+def _login(client) -> None:
+    response = client.post(
+        "/login",
+        data={
+            "username": "sinan",
+            "password": "super-secret",
+            "next_url": "/console",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_root_redirects_to_login_when_not_authenticated(client, monkeypatch) -> None:
+    _configure_panel_auth(monkeypatch)
+
     response = client.get("/", follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == "/setup"
+    assert response.headers["location"].startswith("/login")
 
 
-def test_setup_page_renders(client) -> None:
-    response = client.get("/setup")
+def test_login_page_renders(client, monkeypatch) -> None:
+    _configure_panel_auth(monkeypatch)
+
+    response = client.get("/login")
 
     assert response.status_code == 200
-    assert "Ilk Kurulum" in response.text
+    assert "Panel Girisi" in response.text
+
+
+def test_setup_page_requires_login(client, monkeypatch) -> None:
+    _configure_panel_auth(monkeypatch)
+
+    response = client.get("/setup", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("/login")
 
 
 def test_setup_post_writes_env_and_shows_success(client, monkeypatch) -> None:
+    _configure_panel_auth(monkeypatch)
     monkeypatch.setattr(
         "app.api.control_panel.test_database_connection",
         lambda database_url: (True, "Database connection successful."),
@@ -28,6 +61,8 @@ def test_setup_post_writes_env_and_shows_success(client, monkeypatch) -> None:
         "app.api.control_panel.refresh_telegram_polling_state",
         _noop_refresh,
     )
+
+    _login(client)
 
     response = client.post(
         "/setup",

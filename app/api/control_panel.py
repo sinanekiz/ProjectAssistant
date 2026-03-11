@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from json import JSONDecodeError, loads
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -28,13 +29,77 @@ logger = get_logger(__name__)
 
 
 @router.get("/", response_class=HTMLResponse)
-def root() -> RedirectResponse:
+def root(request: Request) -> RedirectResponse:
+    if not _is_authenticated(request):
+        return _redirect_to_login(request, "/console")
     target = "/console" if is_setup_complete() else "/setup"
     return RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
 
 
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str | None = None) -> HTMLResponse:
+    settings = get_settings()
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={
+            "error": error,
+            "auth_configured": settings.panel_auth_configured,
+            "is_authenticated": _is_authenticated(request),
+        },
+    )
+
+
+@router.post("/login", response_class=HTMLResponse)
+def login_submit(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    next_url: str = Form("/console"),
+) -> HTMLResponse | RedirectResponse:
+    settings = get_settings()
+    if not settings.panel_auth_configured:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": "Panel girisi henuz yapilandirilmamis. Render veya .env icinde PANEL_LOGIN_PASSWORD ve PANEL_SESSION_SECRET ayarlarini tanimla.",
+                "auth_configured": False,
+                "is_authenticated": False,
+            },
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    if username != settings.panel_login_username or password != settings.panel_login_password:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": "Kullanici adi veya sifre hatali.",
+                "auth_configured": True,
+                "is_authenticated": False,
+            },
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    request.session["panel_authenticated"] = True
+    request.session["panel_username"] = username
+    append_activity("panel_login", "Panel login successful", {"username": username})
+    return RedirectResponse(url=_sanitize_next_url(next_url), status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/logout")
+def logout(request: Request) -> RedirectResponse:
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+
 @router.get("/setup", response_class=HTMLResponse)
-def setup_page(request: Request, notice: str | None = None, db_message: str | None = None) -> HTMLResponse:
+def setup_page(request: Request, notice: str | None = None, db_message: str | None = None) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/setup")
+    if access_redirect is not None:
+        return access_redirect
+
     return templates.TemplateResponse(
         request=request,
         name="setup.html",
@@ -43,6 +108,7 @@ def setup_page(request: Request, notice: str | None = None, db_message: str | No
             "notice": notice,
             "db_message": db_message,
             "setup_complete": is_setup_complete(),
+            "is_authenticated": True,
         },
     )
 
@@ -78,7 +144,11 @@ async def save_setup_page(
     telegram_poll_interval_seconds: str = Form("5"),
     public_webhook_base_url: str = Form(""),
     openai_api_key: str = Form(""),
-) -> HTMLResponse:
+) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/setup")
+    if access_redirect is not None:
+        return access_redirect
+
     values = {
         "APP_NAME": app_name,
         "APP_ENV": app_env,
@@ -130,19 +200,26 @@ async def save_setup_page(
             "notice": "Ayarlar kaydedildi.",
             "db_message": db_message,
             "setup_complete": is_setup_complete(),
+            "is_authenticated": True,
         },
     )
 
 
 @router.get("/console", response_class=HTMLResponse)
-def console_page(request: Request) -> HTMLResponse:
+def console_page(request: Request) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/console")
+    if access_redirect is not None:
+        return access_redirect
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
     return _render_console(request=request)
 
 
 @router.post("/console/question", response_class=HTMLResponse)
-def ask_question(request: Request, question: str = Form("")) -> HTMLResponse:
+def ask_question(request: Request, question: str = Form("")) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/console")
+    if access_redirect is not None:
+        return access_redirect
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
@@ -159,7 +236,10 @@ def ask_question(request: Request, question: str = Form("")) -> HTMLResponse:
 
 
 @router.post("/console/test-teams", response_class=HTMLResponse)
-def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLResponse:
+def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/console")
+    if access_redirect is not None:
+        return access_redirect
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
@@ -206,7 +286,10 @@ def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLRe
 def subscribe_graph_channels(
     request: Request,
     channel_targets: list[str] = Form([]),
-) -> HTMLResponse:
+) -> HTMLResponse | RedirectResponse:
+    access_redirect = _guard_panel_access(request, "/console")
+    if access_redirect is not None:
+        return access_redirect
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
@@ -278,8 +361,33 @@ def _render_console(
             "graph_subscriptions": graph_subscriptions,
             "graph_errors": graph_errors,
             "graph_notice": graph_notice,
+            "is_authenticated": True,
         },
     )
+
+
+def _guard_panel_access(request: Request, next_url: str) -> RedirectResponse | None:
+    settings = get_settings()
+    if not settings.panel_auth_configured:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if not _is_authenticated(request):
+        return _redirect_to_login(request, next_url)
+    return None
+
+
+def _redirect_to_login(request: Request, next_url: str) -> RedirectResponse:
+    safe_next = _sanitize_next_url(next_url)
+    return RedirectResponse(url=f"/login?next={quote(safe_next, safe='/?=&')}", status_code=status.HTTP_302_FOUND)
+
+
+def _sanitize_next_url(next_url: str | None) -> str:
+    if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
+        return "/console"
+    return next_url
+
+
+def _is_authenticated(request: Request) -> bool:
+    return bool(request.session.get("panel_authenticated"))
 
 
 def _maybe_open_session() -> Session | None:

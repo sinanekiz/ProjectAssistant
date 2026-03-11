@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Giris | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <article class="auth-card">
+        <p class="eyebrow">Panel Girisi</p>
+        <h2>Kurulum ve operasyon ekranlari koruma altinda</h2>
+        <p class="hero-copy">
+            Bu ekrana erismek icin statik panel kullanici adi ve sifreni gir. Webhook endpoint'leri bu giristen etkilenmez.
+        </p>
+
+        {% if error %}
+        <div class="flash warn">{{ error }}</div>
+        {% endif %}
+
+        {% if not auth_configured %}
+        <div class="flash info">PANEL_LOGIN_PASSWORD ve PANEL_SESSION_SECRET tanimlanmadan panel kullanilamaz.</div>
+        {% endif %}
+
+        <form method="post" action="/login" class="stack-form top-gap">
+            <input type="hidden" name="next_url" value="{{ request.query_params.get('next', '/console') }}">
+            <label>Kullanici Adi<input name="username" autocomplete="username"></label>
+            <label>Sifre<input type="password" name="password" autocomplete="current-password"></label>
+            <button type="submit" class="primary-btn">Giris Yap</button>
+        </form>
+    </article>
+</section>
+{% endblock %}

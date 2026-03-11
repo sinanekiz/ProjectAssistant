@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --bg: #f3efe4;
     --paper: #fffdf8;
     --ink: #1b1b1b;
@@ -306,4 +306,34 @@ td {
     .topbar {
         justify-content: start;
     }
+}
+
+select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px 16px;
+    background: white;
+    font: inherit;
+    color: var(--ink);
+}
+
+.auth-shell {
+    display: grid;
+    place-items: center;
+    min-height: 65vh;
+}
+
+.auth-card {
+    width: min(100%, 520px);
+    background: rgba(255, 253, 248, 0.94);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    border-radius: 32px;
+    padding: 28px;
+}
+
+.top-gap {
+    margin-top: 14px;
 }

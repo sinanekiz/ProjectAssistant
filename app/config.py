@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Any, Literal
@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     public_webhook_base_url: str | None = None
     openai_api_key: str | None = None
 
+    panel_login_username: str = "sinan"
+    panel_login_password: str | None = None
+    panel_session_secret: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -77,6 +81,10 @@ class Settings(BaseSettings):
         if isinstance(value, list):
             return [str(item).strip() for item in value if str(item).strip()]
         raise TypeError("Expected a comma-separated string or list")
+
+    @property
+    def panel_auth_configured(self) -> bool:
+        return bool(self.panel_login_password and self.panel_session_secret)
 
 
 @lru_cache(maxsize=1)
