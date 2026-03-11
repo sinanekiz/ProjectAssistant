@@ -1,0 +1,1 @@
+﻿"""ProjectAssistant application package."""

@@ -1,0 +1,144 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Panel | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card console-hero">
+    <div>
+        <p class="eyebrow">Operasyon Paneli</p>
+        <h2>Kurulum, loglar, onay akisi ve manuel testler tek ekranda</h2>
+        <p class="hero-copy">
+            Bu panel ile ayar durumunu gorebilir, gelen Teams mesajlarini takip edebilir, AI triage ve Telegram approval durumunu izleyebilir, manuel JSON payload test edebilir ve sistemin durumu hakkinda soru sorabilirsin.
+        </p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill {{ 'ok' if db_ok else 'warn' }}">{{ 'DB hazir' if db_ok else 'DB baglantisi sorunlu' }}</div>
+        <div class="flash info">{{ db_message }}</div>
+    </div>
+</section>
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Konfigurasyon Ozeti</h3>
+        <div class="kv-grid">
+            {% for item in config_summary %}
+            <div class="kv-item">
+                <span>{{ item.key }}</span>
+                <strong>{{ item.value or '-' }}</strong>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card">
+        <h3>Manuel Soru Sor</h3>
+        <form method="post" action="/console/question" class="stack-form">
+            <textarea name="question" placeholder="Ornek: db durumu ne?">{{ question }}</textarea>
+            <button type="submit" class="primary-btn">Sor</button>
+        </form>
+        {% if answer %}<div class="answer-box">{{ answer }}</div>{% endif %}
+    </section>
+
+    <section class="panel-card">
+        <h3>Manuel Teams JSON Testi</h3>
+        <form method="post" action="/console/test-teams" class="stack-form">
+            <textarea name="payload_json" class="code-area" placeholder='{"id":"teams-msg-123","text":"Sinan issue var"}'>{{ payload_json }}</textarea>
+            <button type="submit" class="primary-btn">Payload Gonder</button>
+        </form>
+        {% if test_result %}<div class="answer-box">{{ test_result }}</div>{% endif %}
+    </section>
+
+    <section class="panel-card">
+        <h3>Son Islemler</h3>
+        <div class="scroll-list">
+            {% for item in recent_activity %}
+            <article class="list-item">
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.timestamp }}</span>
+                <p>{{ item.event_type }}</p>
+            </article>
+            {% else %}
+            <p class="muted">Henuz activity kaydi yok.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card">
+        <h3>Ops Soru Gecmisi</h3>
+        <div class="scroll-list">
+            {% for item in recent_questions %}
+            <article class="list-item">
+                <strong>{{ item.question }}</strong>
+                <p>{{ item.answer }}</p>
+            </article>
+            {% else %}
+            <p class="muted">Henuz soru sorulmamis.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Son Teams Mesajlari</h3>
+        {% if messages_error %}
+        <div class="flash warn">{{ messages_error }}</div>
+        {% endif %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Sender</th>
+                        <th>Channel</th>
+                        <th>Relevant</th>
+                        <th>Triage</th>
+                        <th>Approval</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in recent_messages %}
+                    <tr>
+                        <td>{{ message.external_message_id }}</td>
+                        <td>{{ message.sender_name or '-' }}</td>
+                        <td>{{ message.channel_name or message.channel_id or '-' }}</td>
+                        <td>{{ 'Evet' if message.is_relevant else 'Hayir' }}</td>
+                        <td>
+                            {% if message.triage_result %}
+                            {{ message.triage_result.category }} / {{ message.triage_result.priority }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if message.triage_result and message.triage_result.approval_request %}
+                            {{ message.triage_result.approval_request.status }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ message.message_text }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">Henuz Teams mesaji kaydi yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Son Loglar</h3>
+        <div class="scroll-list code-list">
+            {% for log in recent_logs %}
+            <article class="list-item log-item">
+                <strong>[{{ log.level }}] {{ log.message }}</strong>
+                <span>{{ log.timestamp }}</span>
+                {% if log.extra %}<pre>{{ log.extra }}</pre>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Log bulunamadi.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

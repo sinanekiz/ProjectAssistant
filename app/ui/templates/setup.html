@@ -1,0 +1,91 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Kurulum | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Ilk Kurulum</p>
+        <h2>Uygulamayi kendi bilgisayarinda ayaga kaldir</h2>
+        <p class="hero-copy">
+            Bu ekran veritabani baglantisi, Microsoft Graph webhook ayarlari, izlenen kanallar ve sonraki sprintlerde kullanilan entegrasyon tokenlarini tek yerden toplar.
+            Ayarlari kaydettikten sonra panelde son islemleri ve kayda dusen Teams mesajlarini gorebilirsin.
+        </p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill {{ 'ok' if setup_complete else 'warn' }}">{{ 'Kurulum algilandi' if setup_complete else 'Kurulum bekleniyor' }}</div>
+        {% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+        {% if db_message %}<div class="flash info">{{ db_message }}</div>{% endif %}
+    </div>
+</section>
+
+<form method="post" action="/setup" class="grid-layout">
+    <section class="panel-card form-card">
+        <h3>Temel Uygulama Ayarlari</h3>
+        <label>Uygulama Adi<input name="app_name" value="{{ values.APP_NAME }}"></label>
+        <label>Ortam<input name="app_env" value="{{ values.APP_ENV }}"></label>
+        <label>Log Level<input name="log_level" value="{{ values.LOG_LEVEL }}"></label>
+        <label>Target Name<input name="target_name" value="{{ values.TARGET_NAME }}"></label>
+        <label>Dil Tercihi
+            <select name="preferred_language">
+                <option value="tr" {% if values.PREFERRED_LANGUAGE == 'tr' %}selected{% endif %}>Turkce</option>
+                <option value="en" {% if values.PREFERRED_LANGUAGE == 'en' %}selected{% endif %}>English</option>
+            </select>
+        </label>
+        <label>Watched Channels<input name="watched_channels" value="{{ values.WATCHED_CHANNELS }}"></label>
+        <label>Relevance Keywords<textarea name="relevance_keywords">{{ values.RELEVANCE_KEYWORDS }}</textarea></label>
+    </section>
+
+    <section class="panel-card form-card">
+        <h3>Veritabani</h3>
+        <label>Database URL<textarea name="database_url">{{ values.DATABASE_URL }}</textarea></label>
+        <label>Postgres DB<input name="postgres_db" value="{{ values.POSTGRES_DB }}"></label>
+        <label>Postgres User<input name="postgres_user" value="{{ values.POSTGRES_USER }}"></label>
+        <label>Postgres Password<input type="password" name="postgres_password" value="{{ values.POSTGRES_PASSWORD }}"></label>
+        <label>Postgres Port<input name="postgres_port" value="{{ values.POSTGRES_PORT }}"></label>
+    </section>
+
+    <section class="panel-card form-card">
+        <h3>Microsoft Graph Teams Ingestion</h3>
+        <label>Microsoft Tenant ID<input name="microsoft_tenant_id" value="{{ values.MICROSOFT_TENANT_ID }}"></label>
+        <label>Microsoft Client ID<input name="microsoft_client_id" value="{{ values.MICROSOFT_CLIENT_ID }}"></label>
+        <label>Microsoft Client Secret<input type="password" name="microsoft_client_secret" value="{{ values.MICROSOFT_CLIENT_SECRET }}"></label>
+        <label>Microsoft Graph Base URL<input name="microsoft_graph_base_url" value="{{ values.MICROSOFT_GRAPH_BASE_URL }}"></label>
+        <label>Graph Webhook Client State<input name="graph_webhook_client_state" value="{{ values.GRAPH_WEBHOOK_CLIENT_STATE }}"></label>
+        <label>Graph Subscription Resource<input name="graph_subscription_resource" value="{{ values.GRAPH_SUBSCRIPTION_RESOURCE }}"></label>
+        <label>Graph Include Resource Data
+            <select name="graph_notification_include_resource_data">
+                <option value="false" {% if values.GRAPH_NOTIFICATION_INCLUDE_RESOURCE_DATA == 'false' %}selected{% endif %}>false</option>
+                <option value="true" {% if values.GRAPH_NOTIFICATION_INCLUDE_RESOURCE_DATA == 'true' %}selected{% endif %}>true</option>
+            </select>
+        </label>
+    </section>
+
+    <section class="panel-card form-card">
+        <h3>Diger Entegrasyonlar</h3>
+        <label>Teams Webhook Secret<input name="teams_webhook_secret" value="{{ values.TEAMS_WEBHOOK_SECRET }}"></label>
+        <label>Teams Bot Token<input name="teams_bot_token" value="{{ values.TEAMS_BOT_TOKEN }}"></label>
+        <label>Teams Reply URL<input name="teams_reply_url" value="{{ values.TEAMS_REPLY_URL }}"></label>
+        <label>Telegram Bot Token<input name="telegram_bot_token" value="{{ values.TELEGRAM_BOT_TOKEN }}"></label>
+        <label>Telegram Chat ID<input name="telegram_chat_id" value="{{ values.TELEGRAM_CHAT_ID }}"></label>
+        <label>Telegram Approval Mode
+            <select name="telegram_approval_mode">
+                <option value="polling" {% if values.TELEGRAM_APPROVAL_MODE == 'polling' %}selected{% endif %}>Polling</option>
+                <option value="webhook" {% if values.TELEGRAM_APPROVAL_MODE == 'webhook' %}selected{% endif %}>Webhook</option>
+            </select>
+        </label>
+        <label>Telegram Poll Interval Seconds<input name="telegram_poll_interval_seconds" value="{{ values.TELEGRAM_POLL_INTERVAL_SECONDS }}"></label>
+        <label>Public Webhook Base URL<input name="public_webhook_base_url" value="{{ values.PUBLIC_WEBHOOK_BASE_URL }}"></label>
+        <label>OpenAI API Key<input name="openai_api_key" value="{{ values.OPENAI_API_KEY }}"></label>
+    </section>
+
+    <section class="panel-card actions-card">
+        <h3>Kurulumu Kaydet</h3>
+        <p>Graph webhook endpoint'i `/webhooks/graph` adresindedir. Microsoft Graph validation isteklerinde `validationToken` query parametresi ham metin olarak geri doner.</p>
+        <div class="button-row">
+            <button type="submit" class="primary-btn">Ayarları Kaydet</button>
+            <a class="secondary-btn" href="/console">Panele Git</a>
+        </div>
+    </section>
+</form>
+{% endblock %}
