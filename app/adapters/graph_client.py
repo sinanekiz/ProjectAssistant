@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -94,23 +94,7 @@ class GraphClient:
         return access_token
 
     def fetch_message_by_resource(self, *, resource: str) -> dict[str, Any] | None:
-        access_token = self.get_access_token()
-        if access_token is None:
-            return None
-
-        resource_path = resource.lstrip("/")
-        url = f"{self.base_url}/{resource_path}"
-        headers = {"Authorization": f"Bearer {access_token}"}
-
-        try:
-            with httpx.Client(timeout=self.timeout_seconds) as client:
-                response = client.get(url, headers=headers)
-                response.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.warning("graph_fetch_message_failed", extra={"resource": resource, "error": str(exc)})
-            return None
-
-        return response.json()
+        return self._get_graph_json(resource)
 
     def fetch_message_details(
         self,
@@ -124,6 +108,58 @@ class GraphClient:
         if reply_id:
             resource = f"{resource}/replies/{reply_id}"
         return self.fetch_message_by_resource(resource=resource)
+
+    def list_teams(self) -> list[dict[str, Any]] | None:
+        payload = self._get_graph_json(
+            "groups",
+            params={
+                "$filter": "resourceProvisioningOptions/Any(x:x eq 'Team')",
+                "$select": "id,displayName",
+                "$top": "200",
+            },
+        )
+        if payload is None:
+            return None
+        teams = payload.get("value", [])
+        teams.sort(key=lambda item: (item.get("displayName") or "").lower())
+        return teams
+
+    def list_channels(self, *, team_id: str) -> list[dict[str, Any]] | None:
+        payload = self._get_graph_json(
+            f"teams/{team_id}/channels",
+            params={"$select": "id,displayName,membershipType"},
+        )
+        if payload is None:
+            return None
+        channels = payload.get("value", [])
+        channels.sort(key=lambda item: (item.get("displayName") or "").lower())
+        return channels
+
+    def list_subscriptions(self) -> list[dict[str, Any]] | None:
+        payload = self._get_graph_json("subscriptions")
+        if payload is None:
+            return None
+        return payload.get("value", [])
+
+    def create_channel_message_subscription(
+        self,
+        *,
+        team_id: str,
+        channel_id: str,
+        notification_url: str,
+        client_state: str | None = None,
+        expiration_minutes: int = 55,
+    ) -> dict[str, Any] | None:
+        expiration_datetime = datetime.now(timezone.utc) + timedelta(minutes=max(expiration_minutes, 15))
+        body: dict[str, Any] = {
+            "changeType": "created",
+            "notificationUrl": notification_url,
+            "resource": f"/teams/{team_id}/channels/{channel_id}/messages",
+            "expirationDateTime": expiration_datetime.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        }
+        if client_state:
+            body["clientState"] = client_state
+        return self._post_graph_json("subscriptions", body, "graph_subscription_create", {"team_id": team_id, "channel_id": channel_id})
 
     def send_chat_message(self, *, chat_id: str, text: str) -> GraphSendResult:
         return self._post_graph_message(
@@ -149,6 +185,54 @@ class GraphClient:
             destination_info={"team_id": team_id, "channel_id": channel_id, "message_id": message_id},
         )
 
+    def _get_graph_json(self, resource: str, params: dict[str, str] | None = None) -> dict[str, Any] | None:
+        access_token = self.get_access_token()
+        if access_token is None:
+            return None
+
+        url = f"{self.base_url}/{resource.lstrip('/')}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout_seconds) as client:
+                response = client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("graph_get_failed", extra={"resource": resource, "error": str(exc)})
+            return None
+
+        return response.json()
+
+    def _post_graph_json(
+        self,
+        resource: str,
+        payload: dict[str, Any],
+        log_event: str,
+        extra_fields: dict[str, str],
+    ) -> dict[str, Any] | None:
+        access_token = self.get_access_token()
+        if access_token is None:
+            return None
+
+        url = f"{self.base_url}/{resource.lstrip('/')}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(f"{log_event}_started", extra=extra_fields)
+        try:
+            with httpx.Client(timeout=self.timeout_seconds) as client:
+                response = client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning(f"{log_event}_failed", extra={"error": str(exc), **extra_fields})
+            return None
+
+        response_payload = response.json() if response.content else {}
+        logger.info(f"{log_event}_succeeded", extra=extra_fields)
+        return response_payload
+
     def _post_graph_message(
         self,
         *,
@@ -157,30 +241,10 @@ class GraphClient:
         destination_type: str,
         destination_info: dict[str, str],
     ) -> GraphSendResult:
-        access_token = self.get_access_token()
-        if access_token is None:
-            return GraphSendResult(success=False, error="Microsoft Graph token could not be acquired", destination_type=destination_type)
+        response_payload = self._post_graph_json(resource, payload, "graph_send", {"destination_type": destination_type, **destination_info})
+        if response_payload is None:
+            return GraphSendResult(success=False, error="Microsoft Graph request failed", destination_type=destination_type)
 
-        url = f"{self.base_url}/{resource.lstrip('/')}"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
-
-        logger.info("graph_send_started", extra={"destination_type": destination_type, **destination_info})
-        try:
-            with httpx.Client(timeout=self.timeout_seconds) as client:
-                response = client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.warning(
-                "graph_send_failed",
-                extra={"destination_type": destination_type, "error": str(exc), **destination_info},
-            )
-            return GraphSendResult(success=False, error=str(exc), destination_type=destination_type)
-
-        response_payload = response.json() if response.content else {}
-        logger.info("graph_send_succeeded", extra={"destination_type": destination_type, **destination_info})
         return GraphSendResult(
             success=True,
             message_id=response_payload.get("id"),

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from json import JSONDecodeError, loads
 from pathlib import Path
@@ -14,6 +14,7 @@ from app.db.models import TeamsMessage, TriageResult
 from app.db.session import get_session_factory, reset_db_state
 from app.logging import configure_logging, get_recent_logs, get_logger
 from app.services.activity_store import append_activity, append_question, list_recent_activity, list_recent_questions
+from app.services.graph_subscriptions import load_graph_console_data, subscribe_to_channels
 from app.services.message_ingest import ingest_teams_message
 from app.services.ops_assistant import answer_manual_question
 from app.services.setup_manager import get_config_summary, get_form_defaults, is_setup_complete, save_setup, test_database_connection
@@ -201,6 +202,23 @@ def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLRe
     return _render_console(request=request, payload_json=payload_json, test_result=test_result)
 
 
+@router.post("/console/graph/subscribe", response_class=HTMLResponse)
+def subscribe_graph_channels(
+    request: Request,
+    channel_targets: list[str] = Form([]),
+) -> HTMLResponse:
+    if not is_setup_complete():
+        return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
+
+    result = subscribe_to_channels(channel_targets)
+    append_activity(
+        "graph_subscription_request",
+        "Graph channel subscription request processed",
+        {"selected_count": len(channel_targets), "errors": result.errors},
+    )
+    return _render_console(request=request, graph_notice=result.notice, graph_extra_errors=result.errors)
+
+
 def _render_console(
     *,
     request: Request,
@@ -208,6 +226,8 @@ def _render_console(
     answer: str = "",
     payload_json: str = "",
     test_result: str = "",
+    graph_notice: str = "",
+    graph_extra_errors: list[str] | None = None,
 ) -> HTMLResponse:
     settings = get_settings()
     db_ok, db_message = test_database_connection(settings.database_url)
@@ -233,6 +253,10 @@ def _render_console(
         if db is not None:
             db.close()
 
+    available_channels, graph_subscriptions, graph_errors = load_graph_console_data()
+    if graph_extra_errors:
+        graph_errors.extend(graph_extra_errors)
+
     return templates.TemplateResponse(
         request=request,
         name="console.html",
@@ -250,6 +274,10 @@ def _render_console(
             "answer": answer,
             "payload_json": payload_json,
             "test_result": test_result,
+            "available_channels": available_channels,
+            "graph_subscriptions": graph_subscriptions,
+            "graph_errors": graph_errors,
+            "graph_notice": graph_notice,
         },
     )
 

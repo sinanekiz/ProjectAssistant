@@ -1,4 +1,4 @@
-﻿# ProjectAssistant Sprint 5
+# ProjectAssistant Sprint 5
 
 Sprint 5, Telegram approval sonrasinda suggested reply'nin Microsoft Graph kullanilarak Teams'e geri gonderilmesini ekler.
 
@@ -23,7 +23,7 @@ Sprint 5, Telegram approval sonrasinda suggested reply'nin Microsoft Graph kulla
    - `conversation_type=chat` ise `chat_id` ile chat'e yeni mesaj gonderilir
    - `conversation_type=channel` ise `team_id`, `channel_id`, `parent_message_id` ile channel reply gonderilir
 8. Sonuc `sent_replies` tablosuna yazilir.
-9. Aynı approval tekrar gelirse ve delivery kaydi varsa ikinci kez gonderim yapilmaz.
+9. Ayn� approval tekrar gelirse ve delivery kaydi varsa ikinci kez gonderim yapilmaz.
 
 ## Beklenen Graph konfigurasyonu
 
@@ -139,3 +139,18 @@ POST /teams/team-42/channels/channel-99/messages/root-77/replies
 - Teams bot SDK veya Bot Framework reply modeli kullanilmadi.
 - Delivery yalnizca Microsoft Graph uzerinden yapilir.
 - Jira, code analysis ve yeni kanal ekleme kapsam disidir.
+
+## Panelden kanal aboneligi olusturma
+
+`/console` ekraninda artik `Teams Kanal Abonelikleri` bolumu bulunur.
+
+Bu bolum:
+- Microsoft Graph uzerinden erisilebilen takimlari ve kanallari listeler
+- bir veya birden fazla kanali secip abonelik olusturur
+- mevcut Graph subscription kayitlarini ekranda gosterir
+
+Notlar:
+- listeleme icin Graph tarafinda uygun uygulama izinleri ve admin consent gerekir
+- takim listesi icin pratikte `Group.Read.All` benzeri bir uygulama izni gerekebilir
+- olusturulan abonelikler test odakli olarak kisa sureli tutulur ve sure dolunca yenilenmeleri gerekir
+- uygulama abonelikleri su URL ile olusturur: `https://<your-host>/webhooks/graph`
