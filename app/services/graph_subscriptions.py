@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 import re
@@ -48,10 +48,10 @@ def load_teams_settings_data(*, fetch_targets: bool = False) -> tuple[list[Graph
     chat_labels = read_chat_labels(settings.database_url)
     targets: list[GraphSubscriptionTarget] = []
     if fetch_targets:
-        if not settings.microsoft_user_id:
-            errors.append("MICROSOFT_USER_ID ayari eksik. Kendi kullanici object id veya UPN degerini Teams ayarlarina gir.")
+        if not settings.microsoft_delegated_connected:
+            errors.append("Chat listesini cekebilmek ve senin hesabin olarak mesaj gonderebilmek icin once Microsoft hesabini bagla.")
         else:
-            targets = _load_user_chats(client, settings.microsoft_user_id, chat_labels, errors)
+            targets = _load_user_chats(client, chat_labels, errors)
 
     subscriptions = _load_graph_subscriptions(client, chat_labels, errors)
     return targets, subscriptions, errors
@@ -176,8 +176,8 @@ def extract_chat_id(value: str) -> str | None:
     return None
 
 
-def _load_user_chats(client: GraphClient, user_id: str, chat_labels: dict[str, str], errors: list[str]) -> list[GraphSubscriptionTarget]:
-    chats = client.list_user_chats(user_id=user_id)
+def _load_user_chats(client: GraphClient, chat_labels: dict[str, str], errors: list[str]) -> list[GraphSubscriptionTarget]:
+    chats = client.list_my_chats()
     if chats is None:
         errors.append("Kullanici chat listesi Graph'tan alinamadi. Teams web linki ile manuel chat ekleyebilirsin.")
         return []
@@ -213,7 +213,7 @@ def _load_user_chats(client: GraphClient, user_id: str, chat_labels: dict[str, s
 
 
 def _build_chat_member_label(client: GraphClient, chat_id: str, chat_type: str) -> str:
-    members = client.list_chat_members(chat_id=chat_id)
+    members = client.list_chat_members(chat_id=chat_id, access_mode="delegated")
     if not members:
         return ""
 

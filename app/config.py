@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Any, Literal
@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     graph_webhook_client_state: str | None = None
     graph_subscription_resource: str | None = None
     graph_notification_include_resource_data: bool = False
+    microsoft_delegated_access_token: str | None = None
+    microsoft_delegated_refresh_token: str | None = None
+    microsoft_delegated_expires_at: str | None = None
+    microsoft_delegated_scope: str | None = None
+    microsoft_delegated_user: str | None = None
 
     teams_webhook_secret: str | None = None
     teams_bot_token: str | None = None
@@ -88,6 +93,10 @@ class Settings(BaseSettings):
     @property
     def panel_auth_configured(self) -> bool:
         return bool(self.panel_login_password and self.panel_session_secret)
+
+    @property
+    def microsoft_delegated_connected(self) -> bool:
+        return bool(self.microsoft_delegated_refresh_token or self.microsoft_delegated_access_token)
 
 
 @lru_cache(maxsize=1)

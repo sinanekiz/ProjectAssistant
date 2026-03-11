@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Teams Ayarlari | ProjectAssistant{% endblock %}
 
@@ -8,16 +8,29 @@
         <p class="eyebrow">Teams Ayarlari</p>
         <h2>Graph baglantisi, relevance kurallari ve dinlenen chatler</h2>
         <p class="hero-copy">
-            Bu sayfada Teams entegrasyon ayarlarini kaydedebilir, istedigin zaman chat listesini cekebilir, chat linki ile manuel abonelik olusturabilir ve dinledigin chatlerin label'larini duzenleyebilirsin.
+            Bu sayfada once Microsoft hesabini baglayip kendi chatlerini cekebilir, sonra dinlemek istedigin chatlere abone olabilir ve label'larini duzenleyebilirsin.
         </p>
     </div>
     <div class="status-stack">
+        <div class="status-pill {{ 'ok' if microsoft_connected else 'warn' }}">{{ 'Microsoft hesabi bagli' if microsoft_connected else 'Microsoft hesabi bagli degil' }}</div>
+        {% if delegated_user %}<div class="flash info">Bagli hesap: {{ delegated_user }}</div>{% endif %}
         {% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
         {% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
     </div>
 </section>
 
 <div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Microsoft Hesabi</h3>
+        <p class="muted">Teams chat listesini gormek ve approve sonrasi mesaji senin hesabin olarak gonderebilmek icin bu baglanti gerekir.</p>
+        <div class="button-row">
+            <a href="/auth/microsoft/start" class="primary-btn">Microsoft Hesabimi Bagla</a>
+            <form method="post" action="/auth/microsoft/disconnect" class="inline-form">
+                <button type="submit" class="secondary-btn">Baglantiyi Kaldir</button>
+            </form>
+        </div>
+    </section>
+
     <section class="panel-card span-2">
         <h3>Teams Konfigurasyonu</h3>
         <form method="post" action="/settings/teams" class="grid-layout">
@@ -27,7 +40,6 @@
             <label>Microsoft Tenant ID<input name="microsoft_tenant_id" value="{{ values.MICROSOFT_TENANT_ID }}"></label>
             <label>Microsoft Client ID<input name="microsoft_client_id" value="{{ values.MICROSOFT_CLIENT_ID }}"></label>
             <label>Microsoft Client Secret<input type="password" name="microsoft_client_secret" value="{{ values.MICROSOFT_CLIENT_SECRET }}"></label>
-            <label>Microsoft User ID veya UPN<input name="microsoft_user_id" value="{{ values.MICROSOFT_USER_ID }}"></label>
             <label>Microsoft Graph Base URL<input name="microsoft_graph_base_url" value="{{ values.MICROSOFT_GRAPH_BASE_URL }}"></label>
             <label>Graph Webhook Client State<input name="graph_webhook_client_state" value="{{ values.GRAPH_WEBHOOK_CLIENT_STATE }}"></label>
             <label>Graph Subscription Resource<input name="graph_subscription_resource" value="{{ values.GRAPH_SUBSCRIPTION_RESOURCE }}"></label>

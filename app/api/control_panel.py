@@ -1,14 +1,16 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
+from secrets import token_urlsafe
 from urllib.parse import quote
 
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Form, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.adapters.graph_client import GraphClient
 from app.adapters.telegram_client import TelegramClient
 from app.config import get_settings
 from app.db.models import TeamsMessage, TriageResult
@@ -27,6 +29,7 @@ from app.services.setup_manager import (
     test_database_connection,
 )
 from app.services.telegram_polling import refresh_telegram_polling_state
+from app.services.triage import triage_message
 
 router = APIRouter(tags=["control-panel"])
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "ui" / "templates"
@@ -272,6 +275,69 @@ async def save_teams_settings_page(
     return _render_teams_settings(request=request, notice="Teams ayarlari kaydedildi.", errors=[], fetch_targets=False)
 
 
+@router.get("/auth/microsoft/start", response_model=None)
+def start_microsoft_auth(request: Request) -> RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/teams")
+    if access_redirect is not None:
+        return access_redirect
+
+    settings = get_settings()
+    if not settings.public_webhook_base_url:
+        return RedirectResponse(url="/settings/teams?errors=PUBLIC_WEBHOOK_BASE_URL%20eksik.", status_code=status.HTTP_302_FOUND)
+
+    client = GraphClient.from_settings()
+    redirect_uri = settings.public_webhook_base_url.rstrip("/") + "/auth/microsoft/callback"
+    state = token_urlsafe(24)
+    authorization_url = client.build_delegated_authorization_url(redirect_uri=redirect_uri, state=state)
+    if authorization_url is None:
+        return RedirectResponse(url="/settings/teams?errors=Microsoft%20Graph%20kimlik%20bilgileri%20eksik.", status_code=status.HTTP_302_FOUND)
+
+    request.session["microsoft_oauth_state"] = state
+    return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/auth/microsoft/callback", response_model=None)
+def microsoft_auth_callback(
+    request: Request,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    error_description: str | None = Query(default=None),
+) -> RedirectResponse:
+    stored_state = request.session.get("microsoft_oauth_state")
+    request.session.pop("microsoft_oauth_state", None)
+
+    if error:
+        return RedirectResponse(url=f"/settings/teams?errors={quote(error_description or error)}", status_code=status.HTTP_302_FOUND)
+    if not code or not state or state != stored_state:
+        return RedirectResponse(url="/settings/teams?errors=Microsoft%20login%20dogrulamasi%20basarisiz.", status_code=status.HTTP_302_FOUND)
+
+    settings = get_settings()
+    if not settings.public_webhook_base_url:
+        return RedirectResponse(url="/settings/teams?errors=PUBLIC_WEBHOOK_BASE_URL%20eksik.", status_code=status.HTTP_302_FOUND)
+
+    client = GraphClient.from_settings()
+    redirect_uri = settings.public_webhook_base_url.rstrip("/") + "/auth/microsoft/callback"
+    result = client.exchange_delegated_code(code=code, redirect_uri=redirect_uri)
+    if not result.success:
+        return RedirectResponse(url=f"/settings/teams?errors={quote(result.error or 'Microsoft%20login%20basarisiz.')}", status_code=status.HTTP_302_FOUND)
+
+    append_activity("microsoft_account_connected", "Microsoft delegated account connected", {"user": result.connected_user or "unknown"})
+    return RedirectResponse(url=f"/settings/teams?notice={quote('Microsoft hesabi baglandi.')}", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/auth/microsoft/disconnect", response_model=None)
+def disconnect_microsoft_auth(request: Request) -> RedirectResponse:
+    access_redirect = _guard_settings_access(request, "/settings/teams")
+    if access_redirect is not None:
+        return access_redirect
+
+    client = GraphClient.from_settings()
+    client.disconnect_delegated_identity()
+    append_activity("microsoft_account_disconnected", "Microsoft delegated account disconnected", {})
+    return RedirectResponse(url=f"/settings/teams?notice={quote('Microsoft hesabi baglantisi kaldirildi.')}", status_code=status.HTTP_302_FOUND)
+
+
 @router.post("/settings/teams/fetch-chats", response_class=HTMLResponse, response_model=None)
 def fetch_team_chats(request: Request) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_settings_access(request, "/settings/teams")
@@ -390,6 +456,7 @@ def _render_general_settings(
 
 def _render_teams_settings(*, request: Request, notice: str, errors: list[str], fetch_targets: bool) -> HTMLResponse:
     available_targets, graph_subscriptions, graph_errors = load_teams_settings_data(fetch_targets=fetch_targets)
+    settings = get_settings()
     return templates.TemplateResponse(
         request=request,
         name="settings_teams.html",
@@ -400,6 +467,8 @@ def _render_teams_settings(*, request: Request, notice: str, errors: list[str], 
             "available_targets": available_targets,
             "graph_subscriptions": graph_subscriptions,
             "fetch_targets": fetch_targets,
+            "microsoft_connected": settings.microsoft_delegated_connected,
+            "delegated_user": settings.microsoft_delegated_user or "",
             "is_authenticated": _is_authenticated(request),
         },
     )
