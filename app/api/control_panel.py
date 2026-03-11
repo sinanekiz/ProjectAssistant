@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from secrets import token_urlsafe
@@ -343,7 +343,24 @@ def fetch_team_chats(request: Request) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_settings_access(request, "/settings/teams")
     if access_redirect is not None:
         return access_redirect
-    return _render_teams_settings(request=request, notice="Chat listesi yenilendi.", errors=[], fetch_targets=True)
+
+    available_targets, graph_subscriptions, graph_errors = load_teams_settings_data(fetch_targets=True)
+    if available_targets:
+        notice = f"{len(available_targets)} chat bulundu."
+    elif graph_errors:
+        notice = ""
+    else:
+        notice = "Bagli hesap icin goruntulenebilir chat bulunamadi."
+
+    return _render_teams_settings(
+        request=request,
+        notice=notice,
+        errors=[],
+        fetch_targets=True,
+        available_targets=available_targets,
+        graph_subscriptions=graph_subscriptions,
+        graph_errors=graph_errors,
+    )
 
 
 @router.post("/settings/teams/subscribe", response_class=HTMLResponse, response_model=None)
@@ -454,8 +471,18 @@ def _render_general_settings(
     )
 
 
-def _render_teams_settings(*, request: Request, notice: str, errors: list[str], fetch_targets: bool) -> HTMLResponse:
-    available_targets, graph_subscriptions, graph_errors = load_teams_settings_data(fetch_targets=fetch_targets)
+def _render_teams_settings(
+    *,
+    request: Request,
+    notice: str,
+    errors: list[str],
+    fetch_targets: bool,
+    available_targets: list | None = None,
+    graph_subscriptions: list | None = None,
+    graph_errors: list[str] | None = None,
+) -> HTMLResponse:
+    if available_targets is None or graph_subscriptions is None or graph_errors is None:
+        available_targets, graph_subscriptions, graph_errors = load_teams_settings_data(fetch_targets=fetch_targets)
     settings = get_settings()
     return templates.TemplateResponse(
         request=request,
@@ -513,3 +540,5 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
+

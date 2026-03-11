@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -242,6 +242,7 @@ class GraphClient:
             return None
         chats = payload.get("value", [])
         chats.sort(key=lambda item: ((item.get("topic") or item.get("id") or "").lower()))
+        logger.info("graph_list_my_chats_succeeded", extra={"chat_count": len(chats)})
         return chats
 
     def list_chat_members(self, *, chat_id: str, access_mode: Literal["app", "delegated"] = "app") -> list[dict[str, Any]] | None:
@@ -492,4 +493,5 @@ class GraphClient:
                 "content": f"<div>{escaped}</div>",
             }
         }
+
 
