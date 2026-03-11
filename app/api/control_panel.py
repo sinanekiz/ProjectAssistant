@@ -15,7 +15,7 @@ from app.db.models import TeamsMessage, TriageResult
 from app.db.session import get_session_factory, reset_db_state
 from app.logging import configure_logging, get_recent_logs, get_logger
 from app.services.activity_store import append_activity, append_question, list_recent_activity, list_recent_questions
-from app.services.graph_subscriptions import load_graph_console_data, subscribe_to_channels
+from app.services.graph_subscriptions import load_graph_console_data, subscribe_to_targets
 from app.services.message_ingest import ingest_teams_message
 from app.services.ops_assistant import answer_manual_question
 from app.services.setup_manager import get_config_summary, get_form_defaults, is_setup_complete, save_setup, test_database_connection
@@ -283,9 +283,9 @@ def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLRe
 
 
 @router.post("/console/graph/subscribe", response_class=HTMLResponse)
-def subscribe_graph_channels(
+def subscribe_graph_targets(
     request: Request,
-    channel_targets: list[str] = Form([]),
+    target_values: list[str] = Form([]),
 ) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
@@ -293,11 +293,11 @@ def subscribe_graph_channels(
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
-    result = subscribe_to_channels(channel_targets)
+    result = subscribe_to_targets(target_values)
     append_activity(
         "graph_subscription_request",
         "Graph channel subscription request processed",
-        {"selected_count": len(channel_targets), "errors": result.errors},
+        {"selected_count": len(target_values), "errors": result.errors},
     )
     return _render_console(request=request, graph_notice=result.notice, graph_extra_errors=result.errors)
 
@@ -336,7 +336,7 @@ def _render_console(
         if db is not None:
             db.close()
 
-    available_channels, graph_subscriptions, graph_errors = load_graph_console_data()
+    available_targets, graph_subscriptions, graph_errors = load_graph_console_data()
     if graph_extra_errors:
         graph_errors.extend(graph_extra_errors)
 
@@ -357,7 +357,7 @@ def _render_console(
             "answer": answer,
             "payload_json": payload_json,
             "test_result": test_result,
-            "available_channels": available_channels,
+            "available_targets": available_targets,
             "graph_subscriptions": graph_subscriptions,
             "graph_errors": graph_errors,
             "graph_notice": graph_notice,
@@ -396,3 +396,4 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+

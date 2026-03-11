@@ -140,18 +140,19 @@ POST /teams/team-42/channels/channel-99/messages/root-77/replies
 - Delivery yalnizca Microsoft Graph uzerinden yapilir.
 - Jira, code analysis ve yeni kanal ekleme kapsam disidir.
 
-## Panelden kanal aboneligi olusturma
+## Panelden kanal ve chat aboneligi olusturma
 
-`/console` ekraninda artik `Teams Kanal Abonelikleri` bolumu bulunur.
+`/console` ekraninda artik `Teams Kanal ve Chat Abonelikleri` bolumu bulunur.
 
 Bu bolum:
-- Microsoft Graph uzerinden erisilebilen takimlari ve kanallari listeler
-- bir veya birden fazla kanali secip abonelik olusturur
+- Microsoft Graph uzerinden erisilebilen takimlari, kanallari, birebir chatleri ve grup chatlerini listeler
+- bir veya birden fazla hedef secip abonelik olusturur
 - mevcut Graph subscription kayitlarini ekranda gosterir
 
 Notlar:
 - listeleme icin Graph tarafinda uygun uygulama izinleri ve admin consent gerekir
-- takim listesi icin pratikte `Group.Read.All` benzeri bir uygulama izni gerekebilir
+- takim listesi icin pratikte `Group.Read.All` uygulama izni gerekir
+- chat listesi icin `Chat.ReadBasic.All` ve chat uye etiketleri icin `ChatMember.Read.All` benzeri uygulama izinleri gerekebilir
 - olusturulan abonelikler test odakli olarak kisa sureli tutulur ve sure dolunca yenilenmeleri gerekir
 - uygulama abonelikleri su URL ile olusturur: `https://<your-host>/webhooks/graph`
 
@@ -168,4 +169,5 @@ PANEL_SESSION_SECRET=long-random-session-secret
 ` 
 
 Bu alanlar tanimli degilse panel ekranlari acilmaz; webhook endpoint'leri calismaya devam eder.
+
 

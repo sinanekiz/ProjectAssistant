@@ -135,6 +135,26 @@ class GraphClient:
         channels.sort(key=lambda item: (item.get("displayName") or "").lower())
         return channels
 
+    def list_chats(self) -> list[dict[str, Any]] | None:
+        payload = self._get_graph_json(
+            "chats",
+            params={"$select": "id,topic,chatType,webUrl", "$top": "200"},
+        )
+        if payload is None:
+            return None
+        chats = payload.get("value", [])
+        chats.sort(key=lambda item: ((item.get("topic") or item.get("id") or "").lower()))
+        return chats
+
+    def list_chat_members(self, *, chat_id: str) -> list[dict[str, Any]] | None:
+        payload = self._get_graph_json(
+            f"chats/{chat_id}/members",
+            params={"$select": "displayName,email,userId,roles", "$top": "50"},
+        )
+        if payload is None:
+            return None
+        return payload.get("value", [])
+
     def list_subscriptions(self) -> list[dict[str, Any]] | None:
         payload = self._get_graph_json("subscriptions")
         if payload is None:
@@ -159,7 +179,26 @@ class GraphClient:
         }
         if client_state:
             body["clientState"] = client_state
-        return self._post_graph_json("subscriptions", body, "graph_subscription_create", {"team_id": team_id, "channel_id": channel_id})
+        return self._post_graph_json("subscriptions", body, "graph_subscription_create", {"target_type": "channel", "team_id": team_id, "channel_id": channel_id})
+
+    def create_chat_message_subscription(
+        self,
+        *,
+        chat_id: str,
+        notification_url: str,
+        client_state: str | None = None,
+        expiration_minutes: int = 55,
+    ) -> dict[str, Any] | None:
+        expiration_datetime = datetime.now(timezone.utc) + timedelta(minutes=max(expiration_minutes, 15))
+        body: dict[str, Any] = {
+            "changeType": "created",
+            "notificationUrl": notification_url,
+            "resource": f"/chats/{chat_id}/messages",
+            "expirationDateTime": expiration_datetime.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        }
+        if client_state:
+            body["clientState"] = client_state
+        return self._post_graph_json("subscriptions", body, "graph_subscription_create", {"target_type": "chat", "chat_id": chat_id})
 
     def send_chat_message(self, *, chat_id: str, text: str) -> GraphSendResult:
         return self._post_graph_message(
