@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Teams Ayarlari | ProjectAssistant{% endblock %}
 
@@ -65,13 +65,16 @@
         </form>
         <form method="post" action="/settings/teams/subscribe" class="stack-form top-gap">
             <label>Secilebilir Chatler</label>
-            <select name="target_values" multiple size="12">
+            <div class="scroll-list checkbox-list">
                 {% for target in available_targets %}
-                <option value="{{ target.value }}">{{ target.label }}</option>
+                <label class="checkbox-item">
+                    <input type="checkbox" name="target_values" value="{{ target.value }}">
+                    <span>{{ target.label }}</span>
+                </label>
                 {% else %}
-                <option disabled>{% if fetch_targets %}Chat listesi bos veya alinamadi.{% else %}Chatleri gormek icin once Chatleri Cek butonuna bas.{% endif %}</option>
+                <p class="muted">{% if fetch_targets %}Chat listesi bos veya alinamadi.{% else %}Chatleri gormek icin once Chatleri Cek butonuna bas.{% endif %}</p>
                 {% endfor %}
-            </select>
+            </div>
             <label>Teams Chat Linki veya Chat ID</label>
             <textarea name="manual_chat_reference" class="code-area" placeholder="https://teams.microsoft.com/l/chat/19:... veya 19:...@thread.v2"></textarea>
             <label>Manuel Label<input name="manual_chat_label" placeholder="Ornek: Rahim - Build Sorunlari"></label>
@@ -120,3 +123,4 @@
     </section>
 </div>
 {% endblock %}
+
