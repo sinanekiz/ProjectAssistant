@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any
@@ -9,9 +9,11 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.adapters.graph_client import GraphClient
+from app.db.models import TeamsMessage
 from app.db.session import get_db
 from app.logging import get_logger
 from app.services.message_ingest import process_graph_notifications
+from app.services.triage import triage_message
 
 router = APIRouter(prefix="/webhooks/graph", tags=["graph"])
 logger = get_logger(__name__)
@@ -38,6 +40,18 @@ async def graph_webhook(
         logger.warning("graph_webhook_invalid_payload", extra={"errors": exc.errors()})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.errors())
 
+    triage_started_count = 0
+    for result in results:
+        if not result.is_relevant or result.message_id is None:
+            continue
+
+        message = db.get(TeamsMessage, result.message_id)
+        if message is None:
+            continue
+
+        triage_started_count += 1
+        triage_message(db=db, message=message)
+
     processed_count = sum(1 for result in results if result.status in {"stored", "duplicate"})
     stored_count = sum(1 for result in results if result.status == "stored")
     return {
@@ -45,6 +59,6 @@ async def graph_webhook(
         "notification_count": len(results),
         "processed_count": processed_count,
         "stored_count": stored_count,
+        "triage_started_count": triage_started_count,
         "results": [asdict(result) for result in results],
     }
-

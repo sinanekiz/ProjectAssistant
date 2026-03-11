@@ -8,7 +8,7 @@ def test_graph_webhook_returns_validation_token(client) -> None:
     assert response.text == "abc123"
 
 
-def test_graph_webhook_accepts_notification_payload_and_stores_message(client, monkeypatch) -> None:
+def test_graph_webhook_accepts_notification_payload_stores_message_and_starts_triage(client, monkeypatch) -> None:
     monkeypatch.setenv("TARGET_NAME", "Sinan")
     monkeypatch.setenv("RELEVANCE_KEYWORDS", "bug,issue,prod")
     monkeypatch.setenv("WATCHED_CHANNELS", "Engineering Alerts")
@@ -26,6 +26,12 @@ def test_graph_webhook_accepts_notification_payload_and_stores_message(client, m
                 "channelDisplayName": "Engineering Alerts",
             },
         },
+    )
+
+    triage_calls: list[int] = []
+    monkeypatch.setattr(
+        "app.api.graph_webhook.triage_message",
+        lambda db, message: triage_calls.append(message.id) or None,
     )
 
     response = client.post(
@@ -51,8 +57,10 @@ def test_graph_webhook_accepts_notification_payload_and_stores_message(client, m
     assert response.json()["status"] == "accepted"
     assert response.json()["notification_count"] == 1
     assert response.json()["stored_count"] == 1
+    assert response.json()["triage_started_count"] == 1
     assert response.json()["results"][0]["status"] == "stored"
     assert response.json()["results"][0]["is_relevant"] is True
+    assert triage_calls
 
 
 def test_graph_webhook_handles_message_fetch_failure(client, monkeypatch) -> None:
