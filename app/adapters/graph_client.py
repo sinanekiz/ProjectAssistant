@@ -234,7 +234,7 @@ class GraphClient:
 
     def list_my_chats(self) -> list[dict[str, Any]] | None:
         payload = self._get_graph_json(
-            "me/chats",
+            "chats",
             params={"$select": "id,topic,chatType", "$top": "200"},
             access_mode="delegated",
         )
@@ -414,7 +414,18 @@ class GraphClient:
                 response = client.get(url, headers=headers, params=params)
                 response.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("graph_get_failed", extra={"resource": resource, "error": str(exc), "access_mode": access_mode})
+            response_text = ""
+            if getattr(exc, "response", None) is not None:
+                response_text = exc.response.text[:1000]
+            logger.warning(
+                "graph_get_failed",
+                extra={
+                    "resource": resource,
+                    "error": str(exc),
+                    "access_mode": access_mode,
+                    "response_text": response_text,
+                },
+            )
             return None
 
         return response.json()
@@ -493,5 +504,6 @@ class GraphClient:
                 "content": f"<div>{escaped}</div>",
             }
         }
+
 
 
