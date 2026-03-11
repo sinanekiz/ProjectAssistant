@@ -46,6 +46,9 @@
                 {% endfor %}
             </select>
             <p class="muted">Buradaki liste `MICROSOFT_USER_ID` ile belirttigin kullanicinin birebir ve grup chatlerini gosterir. Ctrl veya Cmd ile birden fazla chat secebilirsin.</p>
+            <label>Teams Chat Linki veya Chat ID</label>
+            <textarea name="manual_chat_reference" class="code-area" placeholder="https://teams.microsoft.com/l/chat/19:... veya 19:...@thread.v2"></textarea>
+            <p class="muted">Otomatik listeleme calismazsa Teams web'den chat linkini yapistirabilir veya dogrudan chat id girebilirsin.</p>
             <button type="submit" class="primary-btn">Secili Chatlere Abone Ol</button>
         </form>
         <div class="table-wrap top-gap">
@@ -188,4 +191,5 @@
     </section>
 </div>
 {% endblock %}
+
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import re
@@ -8,6 +8,8 @@ from app.config import get_settings
 
 _CHAT_RESOURCE_RE = re.compile(r"^/?chats/(?P<chat_id>[^/]+)/messages$", re.IGNORECASE)
 _CHANNEL_RESOURCE_RE = re.compile(r"^/?teams/(?P<team_id>[^/]+)/channels/(?P<channel_id>[^/]+)/messages$", re.IGNORECASE)
+_CHAT_LINK_RE = re.compile(r"/l/chat/(?P<chat_id>19:[^/?]+)", re.IGNORECASE)
+_RAW_CHAT_ID_RE = re.compile(r"^(19:[A-Za-z0-9._=-]+@thread\.v2)$", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -107,6 +109,28 @@ def subscribe_to_targets(target_values: list[str]) -> GraphSubscriptionActionSum
     return GraphSubscriptionActionSummary(notice=" ".join(parts), errors=errors)
 
 
+def build_manual_chat_target(chat_reference: str) -> tuple[GraphSubscriptionTarget | None, str | None]:
+    normalized = chat_reference.strip()
+    if not normalized:
+        return None, "Chat linki veya chat id bos olamaz."
+
+    chat_id = extract_chat_id(normalized)
+    if chat_id is None:
+        return None, "Chat linkinden veya girdigin degerden gecerli bir chat id ayiklanamadi."
+
+    label = f"Chat / {chat_id}"
+    return (
+        GraphSubscriptionTarget(
+            target_type="chat",
+            target_id=chat_id,
+            label=label,
+            value=f"chat||{chat_id}||{label}",
+            chat_id=chat_id,
+        ),
+        None,
+    )
+
+
 def parse_target_value(value: str) -> tuple[str, str, str] | None:
     parts = value.split("||", 2)
     if len(parts) != 3 or not parts[0] or not parts[1]:
@@ -116,6 +140,20 @@ def parse_target_value(value: str) -> tuple[str, str, str] | None:
 
 def normalize_resource(resource: str) -> str:
     return resource.strip().lstrip("/").lower()
+
+
+def extract_chat_id(value: str) -> str | None:
+    normalized = value.strip()
+
+    raw_match = _RAW_CHAT_ID_RE.match(normalized)
+    if raw_match is not None:
+        return raw_match.group(1)
+
+    link_match = _CHAT_LINK_RE.search(normalized)
+    if link_match is not None:
+        return link_match.group("chat_id")
+
+    return None
 
 
 def _load_user_chats(client: GraphClient, user_id: str, errors: list[str]) -> list[GraphSubscriptionTarget]:

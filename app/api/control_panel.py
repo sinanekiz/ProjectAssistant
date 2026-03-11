@@ -15,7 +15,7 @@ from app.db.models import TeamsMessage, TriageResult
 from app.db.session import get_session_factory, reset_db_state
 from app.logging import configure_logging, get_recent_logs, get_logger
 from app.services.activity_store import append_activity, append_question, list_recent_activity, list_recent_questions
-from app.services.graph_subscriptions import load_graph_console_data, subscribe_to_targets
+from app.services.graph_subscriptions import build_manual_chat_target, load_graph_console_data, subscribe_to_targets
 from app.services.message_ingest import ingest_teams_message
 from app.services.ops_assistant import answer_manual_question
 from app.services.setup_manager import get_config_summary, get_form_defaults, is_setup_complete, save_setup, test_database_connection
@@ -294,6 +294,7 @@ def test_teams_payload(request: Request, payload_json: str = Form("")) -> HTMLRe
 def subscribe_graph_targets(
     request: Request,
     target_values: list[str] = Form([]),
+    manual_chat_reference: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
     access_redirect = _guard_panel_access(request, "/console")
     if access_redirect is not None:
@@ -301,11 +302,19 @@ def subscribe_graph_targets(
     if not is_setup_complete():
         return RedirectResponse(url="/setup", status_code=status.HTTP_302_FOUND)
 
-    result = subscribe_to_targets(target_values)
+    effective_target_values = list(target_values)
+    if manual_chat_reference.strip():
+        manual_target, manual_error = build_manual_chat_target(manual_chat_reference)
+        if manual_target is not None:
+            effective_target_values.append(manual_target.value)
+        else:
+            return _render_console(request=request, graph_notice="", graph_extra_errors=[manual_error] if manual_error else None)
+
+    result = subscribe_to_targets(effective_target_values)
     append_activity(
         "graph_subscription_request",
         "Graph channel subscription request processed",
-        {"selected_count": len(target_values), "errors": result.errors},
+        {"selected_count": len(effective_target_values), "errors": result.errors},
     )
     return _render_console(request=request, graph_notice=result.notice, graph_extra_errors=result.errors)
 
@@ -404,6 +413,7 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
 
 
 
