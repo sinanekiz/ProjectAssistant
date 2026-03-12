@@ -346,6 +346,13 @@ select {
     flex-wrap: wrap;
 }
 
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .modal {
     position: fixed;
     inset: 0;
@@ -540,4 +547,5 @@ select {
     color: var(--accent);
     border-color: rgba(13, 92, 99, 0.4);
 }
+
 

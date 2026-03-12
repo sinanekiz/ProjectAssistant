@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}{{ project.name }} | ProjectAssistant{% endblock %}
 
@@ -80,7 +80,10 @@
     <section class="panel-card span-2">
         <div class="panel-header">
             <h3>Entegrasyonlar</h3>
-            <button type="button" class="secondary-btn" data-modal-open="modal-integration">Yeni Ekle</button>
+            <div class="panel-actions">
+                <a class="secondary-btn" href="/projects/{{ project.id }}/integrations/connect/github">GitHub ile Baglan</a>
+                <button type="button" class="secondary-btn" data-modal-open="modal-integration">Yeni Ekle</button>
+            </div>
         </div>
         <div class="table-wrap top-gap">
             <table>
@@ -488,3 +491,4 @@
 // integration-template-helper
 </script>
 {% endblock %}
+

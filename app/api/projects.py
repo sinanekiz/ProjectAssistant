@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -358,6 +358,81 @@ def project_integration_delete(
         {"project_id": project.id, "integration_id": integration_id},
     )
     return RedirectResponse(url=f"/projects/{project_id}?notice=Entegrasyon%20silindi.", status_code=status.HTTP_302_FOUND)
+
+@router.get("/projects/{project_id}/integrations/connect/{integration_type}", response_model=None)
+def project_integration_quick_connect(
+    project_id: int,
+    integration_type: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    access_redirect = _guard_project_access(request, f"/projects/{project_id}")
+    if access_redirect is not None:
+        return access_redirect
+
+    project = _load_project_or_redirect(db, project_id)
+    if isinstance(project, RedirectResponse):
+        return project
+
+    normalized_type = integration_type.strip().lower()
+    if normalized_type not in ("github", "gmail", "jira"):
+        return RedirectResponse(
+            url=f"/projects/{project_id}?errors=Desteklenmeyen%20entegrasyon%20tipi.",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    integration = next(
+        (item for item in project.integrations if item.integration_type == normalized_type),
+        None,
+    )
+
+    if integration is None:
+        display_map = {
+            "github": "GitHub",
+            "gmail": "Gmail",
+            "jira": "Jira",
+        }
+        base_url_map = {
+            "github": "https://api.github.com",
+            "gmail": "",
+            "jira": "",
+        }
+        integration = create_project_integration(
+            db,
+            project=project,
+            integration_type=normalized_type,
+            display_name=display_map[normalized_type],
+            external_id="",
+            base_url=base_url_map[normalized_type],
+            config_json="{}",
+            is_enabled=True,
+        )
+        append_activity(
+            "project_integration_saved",
+            "Project integration saved",
+            {"project_id": project.id, "integration_type": normalized_type},
+        )
+    else:
+        if not integration.is_enabled:
+            integration.is_enabled = True
+            db.commit()
+
+    cfg = integration.config_json or {}
+    if normalized_type == "github":
+        connected = cfg.get("access_token") or cfg.get("token")
+    else:
+        connected = cfg.get("refresh_token") or cfg.get("access_token")
+
+    if connected:
+        return RedirectResponse(
+            url=f"/projects/{project_id}?notice=Entegrasyon%20zaten%20bagli.",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    return RedirectResponse(
+        url=f"/projects/{project_id}/integrations/{integration.id}/connect",
+        status_code=status.HTTP_302_FOUND,
+    )
 
 @router.get("/projects/{project_id}/integrations/{integration_id}/connect", response_model=None)
 def project_integration_connect(
@@ -998,6 +1073,7 @@ def _guard_project_access(request: Request, next_url: str) -> RedirectResponse |
 
 def _is_authenticated(request: Request) -> bool:
     return bool(request.session.get("panel_authenticated"))
+
 
 
 
