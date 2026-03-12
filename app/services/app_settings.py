@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -41,6 +41,12 @@ RUNTIME_SETTING_KEYS = {
     "telegram_poll_interval_seconds",
     "public_webhook_base_url",
     "openai_api_key",
+    "github_client_id",
+    "github_client_secret",
+    "google_client_id",
+    "google_client_secret",
+    "atlassian_client_id",
+    "atlassian_client_secret",
     "panel_login_username",
     "panel_login_password",
     "panel_session_secret",
@@ -58,11 +64,16 @@ GENERAL_SETTING_KEYS = [
     "telegram_poll_interval_seconds",
     "public_webhook_base_url",
     "openai_api_key",
+    "github_client_id",
+    "github_client_secret",
+    "google_client_id",
+    "google_client_secret",
+    "atlassian_client_id",
+    "atlassian_client_secret",
     "panel_login_username",
     "panel_login_password",
     "panel_session_secret",
 ]
-
 TEAMS_SETTING_KEYS = [
     "target_name",
     "watched_channels",
@@ -182,3 +193,7 @@ def _normalize_setting_value(value: Any) -> str:
     if isinstance(value, list):
         return ",".join(str(item).strip() for item in value if str(item).strip())
     return str(value).strip()
+
+
+
+

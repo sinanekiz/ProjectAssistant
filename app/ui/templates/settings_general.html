@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Genel Ayarlar | ProjectAssistant{% endblock %}
 
@@ -35,6 +35,12 @@
             </label>
             <label>Public Webhook Base URL<input name="public_webhook_base_url" value="{{ values.PUBLIC_WEBHOOK_BASE_URL }}"></label>
             <label>OpenAI API Key<input name="openai_api_key" value="{{ values.OPENAI_API_KEY }}"></label>
+            <label>GitHub Client ID<input name="github_client_id" value="{{ values.GITHUB_CLIENT_ID }}"></label>
+            <label>GitHub Client Secret<input type="password" name="github_client_secret" value="{{ values.GITHUB_CLIENT_SECRET }}"></label>
+            <label>Google Client ID<input name="google_client_id" value="{{ values.GOOGLE_CLIENT_ID }}"></label>
+            <label>Google Client Secret<input type="password" name="google_client_secret" value="{{ values.GOOGLE_CLIENT_SECRET }}"></label>
+            <label>Atlassian Client ID<input name="atlassian_client_id" value="{{ values.ATLASSIAN_CLIENT_ID }}"></label>
+            <label>Atlassian Client Secret<input type="password" name="atlassian_client_secret" value="{{ values.ATLASSIAN_CLIENT_SECRET }}"></label>
             <label>Panel Username<input name="panel_login_username" value="{{ values.PANEL_LOGIN_USERNAME }}"></label>
             <label>Panel Password<input type="password" name="panel_login_password" value="{{ values.PANEL_LOGIN_PASSWORD }}"></label>
             <label>Panel Session Secret<input type="password" name="panel_session_secret" value="{{ values.PANEL_SESSION_SECRET }}"></label>
@@ -57,3 +63,4 @@
     </section>
 </div>
 {% endblock %}
+

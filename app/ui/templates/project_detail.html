@@ -1,0 +1,490 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ project.name }} | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Project Assistant Studio</p>
+        <h2>{{ project.name }}</h2>
+        <p class="hero-copy">{{ project.summary or 'Bu proje icin henuz ozet girilmedi.' }}</p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill ok">{{ project.organization.name if project.organization else 'Bagimsiz workspace' }}</div>
+        <div class="flash info">{{ project.organization.plan_tier if project.organization else 'starter' }}</div>
+        <div class="flash info">{{ project.status }}</div>
+        {% if project.primary_repo_path %}<div class="flash info">{{ project.primary_repo_path }}</div>{% endif %}
+    </div>
+</section>
+
+<nav class="subnav">
+    <a href="/projects/{{ project.id }}" class="active">Overview</a>
+    <a href="/projects/{{ project.id }}/context">Context Studio</a>
+    <a href="/projects/{{ project.id }}/jobs">Knowledge Jobs</a>
+</nav>
+
+{% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+{% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+
+<div class="summary-grid">
+    <article class="summary-card">
+        <span>Assistant Profile</span>
+        <strong>{{ project.assistant_profiles|length }}</strong>
+        <p>Her proje icin farkli ton, dil ve execution modu.</p>
+    </article>
+    <article class="summary-card">
+        <span>Integrations</span>
+        <strong>{{ project.integrations|length }}</strong>
+        <p>GitHub, Jira, Teams, Telegram, WhatsApp, Gmail ve diger kaynaklar.</p>
+    </article>
+    <article class="summary-card">
+        <span>People Graph</span>
+        <strong>{{ project.people|length }}</strong>
+        <p>Ekip hiyerarsisi, roller ve kisi bazli iletisim sinyalleri.</p>
+    </article>
+    <article class="summary-card">
+        <span>Context</span>
+        <strong>{{ project.context_entries|length }}</strong>
+        <p>Repo, dokuman, issue ve operasyon bilgisinden derlenen omurga.</p>
+    </article>
+</div>
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Assistant Brief</h3>
+        </div>
+        <p class="muted top-gap">Bu ozet, ileride ajan cagirilarinda once beslenecek cloud context omurgasinin ilk versiyonudur.</p>
+        <pre class="brief-box">{{ assistant_brief.rendered }}</pre>
+    </section>
+
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Assistant Profilleri</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-assistant-profile">Yeni Ekle</button>
+        </div>
+        <div class="scroll-list top-gap">
+            {% for profile in project.assistant_profiles %}
+            <article class="list-item">
+                <strong>{{ profile.display_name }}</strong>
+                <span>{{ profile.default_language }} | {{ profile.execution_mode }} | {{ 'default' if profile.is_default else 'secondary' }}</span>
+                {% if profile.mission %}<p>{{ profile.mission }}</p>{% endif %}
+                {% if profile.tone_profile %}<p>{{ profile.tone_profile }}</p>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Henuz assistant profili yok.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Entegrasyonlar</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-integration">Yeni Ekle</button>
+        </div>
+        <div class="table-wrap top-gap">
+            <table>
+                <thead><tr><th>Tip</th><th>Ad</th><th>External ID</th><th>Base URL</th><th>Enabled</th><th>Baglanti</th><th>Sil</th></tr></thead>
+                <tbody>
+                {% for item in project.integrations %}
+                    {% set cfg = item.config_json or {} %}
+                    {% set connected = false %}
+                    {% if item.integration_type == 'github' %}
+                        {% set connected = cfg.get('access_token') or cfg.get('token') %}
+                    {% elif item.integration_type == 'gmail' %}
+                        {% set connected = cfg.get('refresh_token') or cfg.get('access_token') %}
+                    {% elif item.integration_type == 'jira' %}
+                        {% set connected = cfg.get('refresh_token') or cfg.get('access_token') %}
+                    {% elif item.integration_type == 'teams' %}
+                        {% set connected = microsoft_connected %}
+                    {% endif %}
+                    <tr>
+                        <td>{{ item.integration_type }}</td>
+                        <td>{{ item.display_name }}</td>
+                        <td>{{ item.external_id or '-' }}</td>
+                        <td>{{ item.base_url or '-' }}</td>
+                        <td>{{ 'true' if item.is_enabled else 'false' }}</td>
+                        <td>
+                            {% if item.integration_type in ['github', 'gmail', 'jira'] %}
+                                {% if connected %}
+                                    <form method="post" action="/projects/{{ project.id }}/integrations/{{ item.id }}/disconnect" onsubmit="return confirm('Entegrasyon baglantisi kaldirilsin mi?')">
+                                        <button type="submit" class="secondary-btn">Entegrasyonu Kaldir</button>
+                                    </form>
+                                {% else %}
+                                    <a class="secondary-btn" href="/projects/{{ project.id }}/integrations/{{ item.id }}/connect">Baglan</a>
+                                {% endif %}
+                            {% elif item.integration_type == 'teams' %}
+                                {% if connected %}
+                                    <form method="post" action="/auth/microsoft/disconnect" onsubmit="return confirm('Teams baglantisi kaldirilsin mi?')">
+                                        <button type="submit" class="secondary-btn">Entegrasyonu Kaldir</button>
+                                    </form>
+                                {% else %}
+                                    <a class="secondary-btn" href="/auth/microsoft/start">Baglan</a>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" action="/projects/{{ project.id }}/integrations/{{ item.id }}/delete" onsubmit="return confirm('Entegrasyon silinsin mi?')">
+                                <button type="submit" class="secondary-btn">Sil</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7">Henuz entegrasyon yok.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-card">
+        <div class="panel-header">
+            <h3>Kisiler</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-person">Yeni Ekle</button>
+        </div>
+        <div class="scroll-list top-gap">
+            {% for person in project.people %}
+            <article class="list-item">
+                <strong>{{ person.name }}</strong>
+                <span>{{ person.role_title or '-' }} | {{ person.relationship_type or '-' }}</span>
+                {% if person.external_ref %}<p>{{ person.external_ref }}</p>{% endif %}
+                {% if person.notes %}<p>{{ person.notes }}</p>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Henuz kisi yok.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Iletisim Stili Kurallari</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-style-rule">Yeni Ekle</button>
+        </div>
+        <div class="scroll-list top-gap">
+            {% for rule in project.communication_style_rules %}
+            <article class="list-item log-item">
+                <strong>{{ rule.channel_type }} | {{ rule.person.name if rule.person else (rule.audience_name or 'genel') }}</strong>
+                <span>{{ rule.audience_role or '-' }} | {{ rule.source_type }} | {{ 'active' if rule.is_active else 'inactive' }}</span>
+                <p>{{ rule.style_summary }}</p>
+                {% if rule.do_guidance %}<p><strong>Do:</strong> {{ rule.do_guidance }}</p>{% endif %}
+                {% if rule.dont_guidance %}<p><strong>Dont:</strong> {{ rule.dont_guidance }}</p>{% endif %}
+                {% if rule.sample_reply %}<pre>{{ rule.sample_reply }}</pre>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Henuz iletisim stili kurali yok.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card">
+        <div class="panel-header">
+            <h3>Mevcut Proje Ayarlari</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-setting">Yeni Ekle</button>
+        </div>
+        <div class="table-wrap top-gap">
+            <table>
+                <thead><tr><th>Anahtar</th><th>Deger</th></tr></thead>
+                <tbody>
+                {% for item in project.settings %}
+                    <tr><td>{{ item.key }}</td><td>{{ item.value }}</td></tr>
+                {% else %}
+                    <tr><td colspan="2">Henuz proje ayari yok.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="modal" id="modal-setting" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Proje Ayari Ekle</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects/{{ project.id }}/settings" class="stack-form top-gap">
+            <label>Anahtar<input name="key" placeholder="ornek: branch_strategy"></label>
+            <label>Deger<textarea name="value" placeholder="ornek: issue acilinca feature/PA-123 branch oner"></textarea></label>
+            <button type="submit" class="primary-btn">Ayari Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-assistant-profile" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Assistant Profile Ekle</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects/{{ project.id }}/assistant-profiles" class="stack-form top-gap">
+            <label>Assistant Adi<input name="display_name" placeholder="HeadEnd Ops Assistant"></label>
+            <label>Misyon<textarea name="mission" placeholder="Jira, Teams, Telegram ve repo context'iyle sorunlari takip et; gerekiyorsa branch oner."></textarea></label>
+            <div class="kv-grid compact-grid">
+                <label>Dil
+                    <select name="default_language">
+                        <option value="tr">tr</option>
+                        <option value="en">en</option>
+                    </select>
+                </label>
+                <label>Execution
+                    <select name="execution_mode">
+                        <option value="draft-first">draft-first</option>
+                        <option value="semi-autonomous">semi-autonomous</option>
+                        <option value="notify-only">notify-only</option>
+                    </select>
+                </label>
+                <label>Default
+                    <select name="is_default">
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                    </select>
+                </label>
+            </div>
+            <label>Ton Profili<textarea name="tone_profile" placeholder="Sirket ici teknik, yonetime ozet ve sakin; musteriye net ve guven veren."></textarea></label>
+            <label>Response Constraints<textarea name="response_constraints" placeholder="Yanitsiz kaldigi durumda tahmin yurutmesin, kritik konuda once Jira ve repo check'i istesin."></textarea></label>
+            <label>Escalation Policy<textarea name="escalation_policy" placeholder="Prod incident, patron mesajlari ve SLA riski varsa Telegram ve Teams uzerinden uyari olustur."></textarea></label>
+            <button type="submit" class="primary-btn">Assistant Profili Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-integration" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Entegrasyon Ekle</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects/{{ project.id }}/integrations" class="stack-form top-gap">
+            <label>Tip
+                <select name="integration_type" id="integration_type">
+                    <option value="github" data-template="{&quot;token&quot;:&quot;GITHUB_TOKEN&quot;,&quot;repo&quot;:&quot;owner/repo&quot;}">github</option>
+                    <option value="jira" data-template="{&quot;base_url&quot;:&quot;https://jira.atlassian.com&quot;,&quot;email&quot;:&quot;user@company.com&quot;,&quot;api_token&quot;:&quot;JIRA_TOKEN&quot;}">jira</option>
+                    <option value="teams" data-template="{&quot;tenant_id&quot;:&quot;TENANT&quot;,&quot;client_id&quot;:&quot;CLIENT&quot;,&quot;client_secret&quot;:&quot;SECRET&quot;}">teams</option>
+                    <option value="telegram" data-template="{&quot;bot_token&quot;:&quot;TELEGRAM_TOKEN&quot;,&quot;chat_id&quot;:&quot;CHAT_ID&quot;}">telegram</option>
+                    <option value="whatsapp" data-template="{&quot;phone_number_id&quot;:&quot;WHATSAPP_ID&quot;,&quot;token&quot;:&quot;WHATSAPP_TOKEN&quot;}">whatsapp</option>
+                    <option value="gmail" data-template="{&quot;access_token&quot;:&quot;GMAIL_ACCESS_TOKEN&quot;,&quot;user_id&quot;:&quot;me&quot;,&quot;query&quot;:&quot;newer_than:30d&quot;,&quot;max_results&quot;:10}">gmail</option>
+                    <option value="docs" data-template="{&quot;folder&quot;:&quot;contexts/&quot;}">docs</option>
+                    <option value="custom" data-template="{&quot;key&quot;:&quot;value&quot;}">custom</option>
+                </select>
+            </label>
+            <label>Gorunen Ad<input name="display_name" placeholder="GridBox HeadEnd Repo"></label>
+            <label>External ID<input id="integration_external_id" name="external_id" placeholder="owner/repo, project key veya mailbox"></label>
+            <label>Base URL<input id="integration_base_url" name="base_url" placeholder="GitHub API: https://api.github.com"></label>
+            <label>Config JSON
+                <textarea id="integration_config_json" name="config_json" placeholder='{"token":"GITHUB_TOKEN","repo":"owner/repo"}'></textarea>
+            </label>
+            <button type="button" class="secondary-btn" id="integration_template_btn">Ornek JSON Doldur</button>
+            <label>Enabled
+                <select name="is_enabled">
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                </select>
+            </label>
+            <button type="submit" class="primary-btn">Entegrasyonu Kaydet</button>
+            <p class="muted">GitHub icin External ID = owner/repo. Base URL yalnizca GitHub Enterprise API icin degisir.</p>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-person" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Kisi Ekle</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects/{{ project.id }}/people" class="stack-form top-gap">
+            <label>Ad<input name="name" placeholder="Rahim Ozdemir"></label>
+            <label>Rol<input name="role_title" placeholder="Tech Lead"></label>
+            <label>Iliski<input name="relationship_type" placeholder="manager, direct-report, peer, customer"></label>
+            <label>External Ref<input name="external_ref" placeholder="teams user id, telegram username, email"></label>
+            <label>Notlar<textarea name="notes" placeholder="Bu kisiye nasil cevap veriliyor, hangi karar alani var, hangi kanali seviyor?"></textarea></label>
+            <button type="submit" class="primary-btn">Kisiyi Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-style-rule" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Iletisim Stili Kurali</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects/{{ project.id }}/style-rules" class="stack-form top-gap">
+            <div class="kv-grid compact-grid">
+                <label>Kanal
+                    <select name="channel_type">
+                        <option value="teams">teams</option>
+                        <option value="telegram">telegram</option>
+                        <option value="whatsapp">whatsapp</option>
+                        <option value="gmail">gmail</option>
+                        <option value="jira">jira-comment</option>
+                        <option value="custom">custom</option>
+                    </select>
+                </label>
+                <label>Kisi
+                    <select name="person_id">
+                        <option value="">Genel kural</option>
+                        {% for person in project.people %}
+                        <option value="{{ person.id }}">{{ person.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Kaynak Tipi<input name="source_type" value="manual"></label>
+            </div>
+            <div class="kv-grid compact-grid">
+                <label>Audience Name<input name="audience_name" placeholder="CEO, patron, operasyon ekibi"></label>
+                <label>Audience Role<input name="audience_role" placeholder="decision-maker"></label>
+                <label>Active
+                    <select name="is_active">
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                    </select>
+                </label>
+            </div>
+            <label>Style Summary<textarea name="style_summary" placeholder="Patrona kisa, net ve risk odakli; ekip icinde ise baglam ve aksiyon maddeleriyle yanit ver."></textarea></label>
+            <label>Do Guidance<textarea name="do_guidance" placeholder="Risk, etki, sonraki adim ve ETA bilgisi ver."></textarea></label>
+            <label>Dont Guidance<textarea name="dont_guidance" placeholder="Suclamaya girme, emin olmadigin bilgiyi kesinmis gibi yazma."></textarea></label>
+            <label>Sample Reply<textarea name="sample_reply" placeholder="Sorunu izole ettim, Jira gorevini actim, repo tarafinda cozum branch'i oneriyorum."></textarea></label>
+            <button type="submit" class="primary-btn">Iletisim Stilini Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+  const modals = document.querySelectorAll("[data-modal]");
+  const openButtons = document.querySelectorAll("[data-modal-open]");
+  const closeButtons = document.querySelectorAll("[data-modal-close]");
+
+  const closeModal = (modal) => {
+    modal.classList.remove("is-open");
+    document.body.classList.remove("modal-open");
+  };
+
+  openButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = button.getAttribute("data-modal-open");
+      const modal = document.getElementById(targetId);
+      if (modal) {
+        modal.classList.add("is-open");
+        document.body.classList.add("modal-open");
+      }
+    });
+  });
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const modal = button.closest("[data-modal]");
+      if (modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  modals.forEach((modal) => {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      modals.forEach((modal) => closeModal(modal));
+    }
+  });
+})();
+</script>
+
+<script>
+(() => {
+  const typeSelect = document.getElementById("integration_type");
+  const configTextarea = document.getElementById("integration_config_json");
+  const baseUrlInput = document.getElementById("integration_base_url");
+  const externalIdInput = document.getElementById("integration_external_id");
+  const templateBtn = document.getElementById("integration_template_btn");
+
+  if (!typeSelect || !configTextarea) {
+    return;
+  }
+
+  const getTemplate = () => {
+    const option = typeSelect.options[typeSelect.selectedIndex];
+    return option ? option.getAttribute("data-template") : "";
+  };
+
+  const fillTemplate = (force) => {
+    const template = getTemplate();
+    if (!template) {
+      return;
+    }
+    if (configTextarea.value.trim() && !force) {
+      const ok = window.confirm("Mevcut JSON silinsin mi?");
+      if (!ok) {
+        return;
+      }
+    }
+    try {
+      const parsed = JSON.parse(template);
+      configTextarea.value = JSON.stringify(parsed, null, 2);
+    } catch (err) {
+      configTextarea.value = template;
+    }
+  };
+
+  const maybeSetDefaults = () => {
+    if (typeSelect.value === "github" && baseUrlInput && !baseUrlInput.value.trim()) {
+      baseUrlInput.value = "https://api.github.com";
+    }
+  };
+
+  const inferGithubRepo = () => {
+    if (typeSelect.value !== "github") {
+      return;
+    }
+    if (!baseUrlInput || !externalIdInput || externalIdInput.value.trim()) {
+      return;
+    }
+    const raw = baseUrlInput.value.trim();
+    if (!raw) {
+      return;
+    }
+    const normalized = raw.startsWith("http") ? raw : `https://${raw}`;
+    try {
+      const url = new URL(normalized);
+      if (url.hostname === "github.com" || url.hostname === "www.github.com") {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length >= 2) {
+          externalIdInput.value = `${parts[0]}/${parts[1]}`;
+        }
+      }
+    } catch (err) {
+      return;
+    }
+  };
+
+  typeSelect.addEventListener("change", () => {
+    fillTemplate(false);
+    maybeSetDefaults();
+  });
+
+  if (templateBtn) {
+    templateBtn.addEventListener("click", () => fillTemplate(true));
+  }
+
+  if (baseUrlInput) {
+    baseUrlInput.addEventListener("blur", inferGithubRepo);
+  }
+
+  if (!configTextarea.value.trim()) {
+    fillTemplate(false);
+    maybeSetDefaults();
+  }
+})();
+// integration-template-helper
+</script>
+{% endblock %}

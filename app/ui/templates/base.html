@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ProjectAssistant{% endblock %}</title>
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20260312">
 </head>
 <body>
     <div class="page-shell">
@@ -16,6 +16,7 @@
             <nav class="topnav">
                 {% if is_authenticated %}
                 <a href="/console">Ana Sayfa</a>
+                <a href="/projects">Projeler</a>
                 <a href="/settings/general">Genel Ayarlar</a>
                 <a href="/settings/telegram">Telegram Ayarlari</a>
                 <a href="/settings/teams">Teams Ayarlari</a>
@@ -31,3 +32,4 @@
     </div>
 </body>
 </html>
+

@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.control_panel import router as control_panel_router
 from app.api.graph_webhook import router as graph_webhook_router
 from app.api.health import router as health_router
+from app.api.projects import router as projects_router
 from app.api.telegram_webhook import router as telegram_webhook_router
 from app.api.teams_webhook import router as teams_webhook_router
 from app.config import get_settings
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     )
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     application.include_router(control_panel_router)
+    application.include_router(projects_router)
     application.include_router(health_router)
     application.include_router(graph_webhook_router)
     application.include_router(teams_webhook_router)

@@ -1,0 +1,13 @@
+GridBox Headend
+Aç ı klama
+Bu Alanda aray ı n
+Etikete göre filtreleyin
+En son güncellenen içerikler
+Bu alan ı n amac ı n ı  bir veya iki cümleyle aç ı klay ı n.
+Bunlar, bu alanda kullan ı lan tüm etiketlerdir. Etiketin uyguland ığı
+içeriklerin listesini görmek için bir etiket seçin.
+Alan ı n ı zda bir ki ş i her içerik olu ş turdu ğ unda veya içeri ğ i
+güncelledi ğ inde a ş a ğı daki liste otomatik olarak güncellenir.
+GridBox Headend
+ Düzenle Payla ş
+GridBox Headend Doc

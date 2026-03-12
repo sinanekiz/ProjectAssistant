@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} | Knowledge Jobs{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Knowledge Jobs</p>
+        <h2>{{ project.name }}</h2>
+        <p class="hero-copy">Jira, GitHub ve mesaj gecmisi icin isler.</p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill ok">{{ project.organization.name if project.organization else 'Bagimsiz workspace' }}</div>
+        <div class="flash info">{{ project.status }}</div>
+    </div>
+</section>
+
+<nav class="subnav">
+    <a href="/projects/{{ project.id }}">Overview</a>
+    <a href="/projects/{{ project.id }}/context">Context Studio</a>
+    <a href="/projects/{{ project.id }}/jobs" class="active">Knowledge Jobs</a>
+</nav>
+
+{% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+{% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+
+<section class="panel-card">
+    <h3>Yeni Job</h3>
+    <form method="post" action="/projects/{{ project.id }}/jobs" class="stack-form top-gap">
+        <label>Job Tipi
+            <select name="job_type">
+                {% for job_type, label in job_types %}
+                <option value="{{ job_type }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="primary-btn">Job Baslat</button>
+    </form>
+</section>
+
+<section class="panel-card">
+    <h3>Son Job'lar</h3>
+    <div class="table-wrap top-gap">
+        <table>
+            <thead><tr><th>Tip</th><th>Durum</th><th>Ozet</th><th>Baslangic</th><th>Bitis</th></tr></thead>
+            <tbody>
+            {% for job in jobs %}
+                <tr>
+                    <td>{{ job.job_type }}</td>
+                    <td>{{ job.status }}</td>
+                    <td>{{ job.result_summary or '-' }}</td>
+                    <td>{{ job.started_at or '-' }}</td>
+                    <td>{{ job.finished_at or '-' }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5">Henuz job yok.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

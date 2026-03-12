@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} | Context Studio{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Context Studio</p>
+        <h2>{{ project.name }}</h2>
+        <p class="hero-copy">Proje context omurgasini buradan besle.</p>
+    </div>
+    <div class="status-stack">
+        <div class="status-pill ok">{{ project.organization.name if project.organization else 'Bagimsiz workspace' }}</div>
+        <div class="flash info">{{ project.status }}</div>
+    </div>
+</section>
+
+<nav class="subnav">
+    <a href="/projects/{{ project.id }}">Overview</a>
+    <a href="/projects/{{ project.id }}/context" class="active">Context Studio</a>
+    <a href="/projects/{{ project.id }}/jobs">Knowledge Jobs</a>
+</nav>
+
+{% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+{% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <h3>Context Dosyalari</h3>
+        <form method="post" action="/projects/{{ project.id }}/contexts/import-folder" class="stack-form top-gap">
+            <label>Dosya Prefix<input name="prefix" value="{{ context_prefix }}" placeholder="GridBox.HeadEnd"></label>
+            <p class="muted">contexts/ klasorundeki bu prefix ile baslayan dosyalar eklenir.</p>
+            <button type="submit" class="primary-btn">Context Dosyalarini Iceri Al</button>
+        </form>
+        <form method="post" action="/projects/{{ project.id }}/contexts/upload" class="stack-form top-gap" enctype="multipart/form-data">
+            <label>Dosya Yukle<input type="file" name="files" multiple></label>
+            <div class="kv-grid compact-grid">
+                <label>Bolum<input name="section" value="general"></label>
+                <label>Kaynak Tipi<input name="source_type" value="upload"></label>
+            </div>
+            <button type="submit" class="primary-btn">Yuklenen Dosyalari Iceri Al</button>
+        </form>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Context Ekle</h3>
+        <form method="post" action="/projects/{{ project.id }}/contexts" class="stack-form top-gap">
+            <label>Baslik<input name="title" placeholder="HeadEnd sorumluluk siniri"></label>
+            <div class="kv-grid compact-grid">
+                <label>Bolum<input name="section" value="general"></label>
+                <label>Kaynak Tipi<input name="source_type" value="manual"></label>
+                <label>Kaynak Ref<input name="source_ref" placeholder="file path, jira key, wiki link, upload id"></label>
+            </div>
+            <label>Icerik<textarea name="content" placeholder="Bu proje icin AI'nin bilmesi gereken sabit bilgi, dokuman ozeti veya ekran akis notlari"></textarea></label>
+            <button type="submit" class="primary-btn">Context Kaydet</button>
+        </form>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Context Kayitlari</h3>
+        <div class="scroll-list code-list top-gap">
+            {% for entry in project.context_entries %}
+            <article class="list-item log-item">
+                <strong>{{ entry.title }}</strong>
+                <span>{{ entry.section }} / {{ entry.source_type }}</span>
+                <p>{{ entry.content }}</p>
+                {% if entry.source_ref %}<pre>{{ entry.source_ref }}</pre>{% endif %}
+            </article>
+            {% else %}
+            <p class="muted">Henuz context kaydi yok.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <h3>Context Dokumanlari</h3>
+        <div class="table-wrap top-gap">
+            <table>
+                <thead><tr><th>Dosya</th><th>Kaynak</th><th>Boyut</th><th>Checksum</th></tr></thead>
+                <tbody>
+                {% for doc in project.context_documents %}
+                    <tr>
+                        <td>{{ doc.filename }}</td>
+                        <td>{{ doc.source_type }}</td>
+                        <td>{{ doc.size_bytes or '-' }}</td>
+                        <td>{{ doc.checksum or '-' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="4">Henuz dokuman yok.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

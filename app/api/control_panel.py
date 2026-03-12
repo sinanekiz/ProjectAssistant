@@ -128,6 +128,12 @@ async def save_general_settings_page(
     preferred_language: str = Form("tr"),
     public_webhook_base_url: str = Form(""),
     openai_api_key: str = Form(""),
+    github_client_id: str = Form(""),
+    github_client_secret: str = Form(""),
+    google_client_id: str = Form(""),
+    google_client_secret: str = Form(""),
+    atlassian_client_id: str = Form(""),
+    atlassian_client_secret: str = Form(""),
     panel_login_username: str = Form("sinan"),
     panel_login_password: str = Form(""),
     panel_session_secret: str = Form(""),
@@ -144,6 +150,12 @@ async def save_general_settings_page(
         "PREFERRED_LANGUAGE": preferred_language,
         "PUBLIC_WEBHOOK_BASE_URL": public_webhook_base_url,
         "OPENAI_API_KEY": openai_api_key,
+        "GITHUB_CLIENT_ID": github_client_id,
+        "GITHUB_CLIENT_SECRET": github_client_secret,
+        "GOOGLE_CLIENT_ID": google_client_id,
+        "GOOGLE_CLIENT_SECRET": google_client_secret,
+        "ATLASSIAN_CLIENT_ID": atlassian_client_id,
+        "ATLASSIAN_CLIENT_SECRET": atlassian_client_secret,
         "PANEL_LOGIN_USERNAME": panel_login_username,
         "PANEL_LOGIN_PASSWORD": panel_login_password,
         "PANEL_SESSION_SECRET": panel_session_secret,
@@ -590,5 +602,7 @@ def _maybe_open_session() -> Session | None:
         return session_factory()
     except Exception:
         return None
+
+
 
 

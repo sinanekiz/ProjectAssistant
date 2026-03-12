@@ -338,6 +338,56 @@ select {
     margin-top: 14px;
 }
 
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(16, 14, 11, 0.45);
+    z-index: 1000;
+}
+
+.modal.is-open {
+    display: flex;
+}
+
+.modal-content {
+    width: min(100%, 640px);
+    background: rgba(255, 253, 248, 0.98);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    border-radius: 24px;
+    padding: 20px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.modal-body {
+    display: grid;
+    gap: 14px;
+}
+
+.modal-open {
+    overflow: hidden;
+}
+
 
 .checkbox-list {
     max-height: 320px;
@@ -402,3 +452,92 @@ select {
 .subscriptions-table input {
     min-width: 220px;
 }
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.summary-card {
+    background: rgba(255, 253, 248, 0.9);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    border-radius: 24px;
+    padding: 18px 20px;
+}
+
+.summary-card span {
+    display: block;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.summary-card strong {
+    display: block;
+    font-size: 34px;
+    font-family: Georgia, "Times New Roman", serif;
+    margin-bottom: 6px;
+}
+
+.summary-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.brief-box {
+    margin: 14px 0 0;
+    padding: 18px;
+    border-radius: 20px;
+    border: 1px solid var(--line);
+    background: #f8fbfb;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    font-size: 13px;
+}
+
+.compact-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+    .summary-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .summary-grid,
+    .compact-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.subnav {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 18px;
+}
+
+.subnav a {
+    text-decoration: none;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    background: var(--paper);
+}
+
+.subnav a.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: rgba(13, 92, 99, 0.4);
+}
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Any, Literal
@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     telegram_poll_interval_seconds: int = 5
     public_webhook_base_url: str | None = None
     openai_api_key: str | None = None
+
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    atlassian_client_id: str | None = None
+    atlassian_client_secret: str | None = None
 
     panel_login_username: str = "sinan"
     panel_login_password: str | None = None
@@ -109,3 +116,4 @@ def get_settings() -> Settings:
     merged_values = base_settings.model_dump()
     merged_values.update(db_overrides)
     return Settings.model_validate(merged_values)
+

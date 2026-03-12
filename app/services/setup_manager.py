@@ -14,9 +14,13 @@ SECRET_KEYS = {
     "TEAMS_BOT_TOKEN",
     "TELEGRAM_BOT_TOKEN",
     "OPENAI_API_KEY",
+    "GITHUB_CLIENT_SECRET",
+    "GOOGLE_CLIENT_SECRET",
+    "ATLASSIAN_CLIENT_SECRET",
     "PANEL_LOGIN_PASSWORD",
     "PANEL_SESSION_SECRET",
 }
+
 GENERAL_FORM_KEYS = [
     "APP_NAME",
     "APP_ENV",
@@ -24,10 +28,17 @@ GENERAL_FORM_KEYS = [
     "PREFERRED_LANGUAGE",
     "PUBLIC_WEBHOOK_BASE_URL",
     "OPENAI_API_KEY",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "ATLASSIAN_CLIENT_ID",
+    "ATLASSIAN_CLIENT_SECRET",
     "PANEL_LOGIN_USERNAME",
     "PANEL_LOGIN_PASSWORD",
     "PANEL_SESSION_SECRET",
 ]
+
 TELEGRAM_FORM_KEYS = [
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
@@ -62,6 +73,12 @@ _FIELD_MAP = {
     "TELEGRAM_POLL_INTERVAL_SECONDS": "telegram_poll_interval_seconds",
     "PUBLIC_WEBHOOK_BASE_URL": "public_webhook_base_url",
     "OPENAI_API_KEY": "openai_api_key",
+    "GITHUB_CLIENT_ID": "github_client_id",
+    "GITHUB_CLIENT_SECRET": "github_client_secret",
+    "GOOGLE_CLIENT_ID": "google_client_id",
+    "GOOGLE_CLIENT_SECRET": "google_client_secret",
+    "ATLASSIAN_CLIENT_ID": "atlassian_client_id",
+    "ATLASSIAN_CLIENT_SECRET": "atlassian_client_secret",
     "PANEL_LOGIN_USERNAME": "panel_login_username",
     "PANEL_LOGIN_PASSWORD": "panel_login_password",
     "PANEL_SESSION_SECRET": "panel_session_secret",
@@ -97,6 +114,12 @@ def get_general_form_defaults() -> dict[str, str]:
         "PREFERRED_LANGUAGE": settings.preferred_language,
         "PUBLIC_WEBHOOK_BASE_URL": settings.public_webhook_base_url or "",
         "OPENAI_API_KEY": settings.openai_api_key or "",
+        "GITHUB_CLIENT_ID": settings.github_client_id or "",
+        "GITHUB_CLIENT_SECRET": settings.github_client_secret or "",
+        "GOOGLE_CLIENT_ID": settings.google_client_id or "",
+        "GOOGLE_CLIENT_SECRET": settings.google_client_secret or "",
+        "ATLASSIAN_CLIENT_ID": settings.atlassian_client_id or "",
+        "ATLASSIAN_CLIENT_SECRET": settings.atlassian_client_secret or "",
         "PANEL_LOGIN_USERNAME": settings.panel_login_username,
         "PANEL_LOGIN_PASSWORD": settings.panel_login_password or "",
         "PANEL_SESSION_SECRET": settings.panel_session_secret or "",
@@ -188,3 +211,9 @@ def _map_form_values(values: dict[str, Any], allowed_keys: list[str], defaults: 
         else:
             mapped[_FIELD_MAP[key]] = raw_value
     return mapped
+
+
+
+
+
+

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Projeler | ProjectAssistant{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Cloud Assistant Studio</p>
+        <h2>Tenant bazli proje asistani kurgusu</h2>
+        <p class="hero-copy">
+            Her workspace kendi planina sahip olur; her proje ise repo, Jira, Teams, Telegram, WhatsApp, Gmail ve dokuman context'iyle ayri bir asistan olarak calisir.
+        </p>
+    </div>
+    <div class="status-stack">
+        <div class="flash info">Workspace: {{ organizations|length }}</div>
+        <div class="flash info">Project: {{ projects|length }}</div>
+        <div class="flash info">Model: SaaS / multi-tenant</div>
+    </div>
+</section>
+
+{% if notice %}<div class="flash success">{{ notice }}</div>{% endif %}
+{% for error in errors %}<div class="flash warn">{{ error }}</div>{% endfor %}
+
+<div class="grid-layout console-grid">
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Workspace'ler</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-workspace">Yeni Ekle</button>
+        </div>
+        <div class="table-wrap top-gap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ad</th>
+                        <th>Plan</th>
+                        <th>Sahip</th>
+                        <th>Email</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for organization in organizations %}
+                    <tr>
+                        <td>{{ organization.name }}</td>
+                        <td>{{ organization.plan_tier }}</td>
+                        <td>{{ organization.owner_name or '-' }}</td>
+                        <td>{{ organization.billing_email or '-' }}</td>
+                        <td>{{ organization.status }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">Henuz workspace yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-card span-2">
+        <div class="panel-header">
+            <h3>Projeler</h3>
+            <button type="button" class="secondary-btn" data-modal-open="modal-project">Yeni Ekle</button>
+        </div>
+        <div class="table-wrap top-gap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ad</th>
+                        <th>Workspace</th>
+                        <th>Durum</th>
+                        <th>Repo</th>
+                        <th>Profil</th>
+                        <th>Entegrasyon</th>
+                        <th>Kisi</th>
+                        <th>Context</th>
+                        <th>Style</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td><a href="/projects/{{ project.id }}">{{ project.name }}</a></td>
+                        <td>{{ project.organization.name if project.organization else 'Bagimsiz' }}</td>
+                        <td>{{ project.status }}</td>
+                        <td>{{ project.primary_repo_path or '-' }}</td>
+                        <td>{{ project.assistant_profiles|length }}</td>
+                        <td>{{ project.integrations|length }}</td>
+                        <td>{{ project.people|length }}</td>
+                        <td>{{ project.context_entries|length }}</td>
+                        <td>{{ project.communication_style_rules|length }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9">Henuz proje yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="modal" id="modal-workspace" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Yeni Workspace</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/organizations" class="stack-form modal-body">
+            <label>Workspace Adi<input name="name" placeholder="Ornek: Mobitolya Cloud"></label>
+            <label>Sahip<input name="owner_name" placeholder="Sinan"></label>
+            <label>Billing Email<input name="billing_email" placeholder="ops@example.com"></label>
+            <label>Plan
+                <select name="plan_tier">
+                    <option value="starter">starter</option>
+                    <option value="team">team</option>
+                    <option value="business">business</option>
+                    <option value="enterprise">enterprise</option>
+                </select>
+            </label>
+            <label>Ozet<textarea name="summary" placeholder="Bu workspace hangi ekipleri ya da musterileri kapsiyor?"></textarea></label>
+            <label>Durum
+                <select name="status_value">
+                    <option value="active">active</option>
+                    <option value="draft">draft</option>
+                    <option value="paused">paused</option>
+                </select>
+            </label>
+            <button type="submit" class="primary-btn">Workspace Olustur</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-project" data-modal>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Yeni Proje</h3>
+            <button type="button" class="secondary-btn" data-modal-close>Kapat</button>
+        </div>
+        <form method="post" action="/projects" class="stack-form modal-body">
+            <label>Workspace Sec
+                <select name="organization_id">
+                    <option value="">Workspace sec veya asagida yeni tane tanimla</option>
+                    {% for organization in organizations %}
+                    <option value="{{ organization.id }}">{{ organization.name }} | {{ organization.plan_tier }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="kv-grid compact-grid">
+                <label>Yeni Workspace Adi<input name="organization_name" placeholder="Ilk proje icin otomatik workspace"></label>
+                <label>Workspace Sahibi<input name="organization_owner_name" placeholder="Sinan"></label>
+                <label>Workspace Plan
+                    <select name="organization_plan_tier">
+                        <option value="starter">starter</option>
+                        <option value="team">team</option>
+                        <option value="business">business</option>
+                        <option value="enterprise">enterprise</option>
+                    </select>
+                </label>
+            </div>
+            <label>Workspace Billing Email<input name="organization_billing_email" placeholder="finance@example.com"></label>
+            <label>Proje Adi<input name="name" placeholder="Ornek: GridBox HeadEnd"></label>
+            <label>Sahiplik
+                <select name="ownership_type">
+                    <option value="company">company</option>
+                    <option value="personal">personal</option>
+                    <option value="client">client</option>
+                </select>
+            </label>
+            <label>Ozet<textarea name="summary" placeholder="Bu asistan hangi operasyonu veya urunu yonetecek?"></textarea></label>
+            <label>Ana Repo Yolu<input name="primary_repo_path" placeholder="C:\Users\Sinan\source\repos\..."></label>
+            <label>Durum
+                <select name="status_value">
+                    <option value="active">active</option>
+                    <option value="draft">draft</option>
+                    <option value="paused">paused</option>
+                </select>
+            </label>
+            <button type="submit" class="primary-btn">Projeyi Olustur</button>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+  const modals = document.querySelectorAll("[data-modal]");
+  const openButtons = document.querySelectorAll("[data-modal-open]");
+  const closeButtons = document.querySelectorAll("[data-modal-close]");
+
+  const closeModal = (modal) => {
+    modal.classList.remove("is-open");
+    document.body.classList.remove("modal-open");
+  };
+
+  openButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = button.getAttribute("data-modal-open");
+      const modal = document.getElementById(targetId);
+      if (modal) {
+        modal.classList.add("is-open");
+        document.body.classList.add("modal-open");
+      }
+    });
+  });
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const modal = button.closest("[data-modal]");
+      if (modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  modals.forEach((modal) => {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      modals.forEach((modal) => closeModal(modal));
+    }
+  });
+})();
+</script>
+{% endblock %}
